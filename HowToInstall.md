@@ -40,7 +40,15 @@ openssl rand -hex 32
 
 Repeat the command for each value you need.
 
-## 5) Start the app (default local stack)
+## 5) Choose runtime mode
+
+Set `APP_MODE` in `.env`:
+
+- `APP_MODE=demo` → frontend-only mock runtime, no backend dependency
+- `APP_MODE=development` → real backend API mode
+- `APP_MODE=production` → production mode (demo blocked when `DEPLOY_ENV=production`)
+
+## 6) Start the app (default local stack)
 
 ```bash
 docker compose --env-file .env up -d --build
@@ -51,7 +59,15 @@ This starts:
 - `backend` (FastAPI)
 - `ollama`
 
-## 6) Verify it is running
+For a strict demo run without backend:
+
+```bash
+APP_MODE=demo docker compose --env-file .env up -d frontend
+```
+
+## 7) Verify it is running
+
+For `APP_MODE=development` or `APP_MODE=production`:
 
 ```bash
 docker compose --env-file .env ps
@@ -59,9 +75,14 @@ curl -fsS http://localhost:3000/health
 curl -fsS http://localhost:3000/api/auth/status
 ```
 
-If both curl commands return JSON, deployment is healthy.
+For strict frontend-only demo (`APP_MODE=demo` + only `frontend` service), verify UI availability instead:
 
-## 7) Open the app
+```bash
+docker compose --env-file .env ps
+curl -fsS http://localhost:3000/
+```
+
+## 8) Open the app
 
 Go to:
 
@@ -69,13 +90,13 @@ Go to:
 http://localhost:3000
 ```
 
-## 8) (Optional) Start PostgreSQL + Redis too
+## 9) (Optional) Start PostgreSQL + Redis too
 
 ```bash
 docker compose --env-file .env --profile full up -d --build
 ```
 
-## 9) Useful operations
+## 10) Useful operations
 
 ```bash
 # Tail logs

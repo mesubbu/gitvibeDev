@@ -63,6 +63,7 @@ services:
     tmpfs:
       - /tmp
     environment:
+      APP_MODE: ${APP_MODE:-development}
       AI_PROVIDER: ${AI_PROVIDER:-ollama}
       DEMO_MODE: ${DEMO_MODE:-true}
       FAST_BOOT: ${FAST_BOOT:-true}
@@ -113,11 +114,15 @@ services:
   frontend:
     image: nginx:1.27-alpine
     restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
     ports:
       - "${FRONTEND_PORT:-3000}:80"
+    environment:
+      APP_MODE: ${APP_MODE:-development}
+      API_BASE_URL: ${API_BASE_URL:-}
+      DEMO_NAMESPACE: ${DEMO_NAMESPACE:-gitvibe_demo_v1}
+      ALLOW_DEMO_ON_PUBLIC_HOST: ${ALLOW_DEMO_ON_PUBLIC_HOST:-false}
+      DEPLOY_ENV: ${DEPLOY_ENV:-}
+    command: ["/bin/sh", "/usr/share/nginx/html/entrypoint.sh"]
     volumes:
       - ./frontend:/usr/share/nginx/html:ro
       - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro

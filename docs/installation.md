@@ -55,6 +55,20 @@ What this does:
 By default, only the backend, frontend (nginx), and Ollama are started.
 PostgreSQL and Redis are **not required** for basic/demo usage.
 
+### APP_MODE runtime switch
+
+Set `APP_MODE` in `.env` to switch runtime behavior:
+
+- `APP_MODE=demo` → frontend-only local mock runtime (no backend dependency)
+- `APP_MODE=development` → frontend + real backend APIs
+- `APP_MODE=production` → production-ready backend mode (demo blocked with `DEPLOY_ENV=production`)
+
+Frontend-only demo start:
+
+```bash
+APP_MODE=demo docker compose --env-file .env up -d frontend
+```
+
 ### Full profile (optional)
 
 To also start PostgreSQL and Redis (for production persistence):
@@ -69,6 +83,8 @@ make up-full
 curl -fsS http://localhost:3000/health
 curl -fsS http://localhost:3000/api/auth/status
 ```
+
+> If you started only `frontend` with `APP_MODE=demo`, verify `http://localhost:3000/` instead; backend proxy endpoints are intentionally unused in that mode.
 
 ## First access token (for protected API calls)
 

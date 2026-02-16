@@ -68,7 +68,26 @@ from .security import (
 )
 from .vault import LocalVault
 
-FAST_BOOT = env_bool("FAST_BOOT", False)
+VALID_APP_MODES = {"demo", "development", "production"}
+
+
+def resolve_app_mode() -> str:
+    configured = os.getenv("APP_MODE", "").strip().lower()
+    if not configured:
+        return "demo" if env_bool("DEMO_MODE", True) else "development"
+    if configured not in VALID_APP_MODES:
+        raise RuntimeError(
+            f"Invalid APP_MODE='{configured}'. Expected one of: demo, development, production."
+        )
+    return configured
+
+
+APP_MODE = resolve_app_mode()
+DEPLOY_ENV = os.getenv("DEPLOY_ENV", "").strip().lower()
+if APP_MODE == "demo" and DEPLOY_ENV == "production":
+    raise RuntimeError("APP_MODE=demo is blocked when DEPLOY_ENV=production.")
+
+FAST_BOOT = env_bool("FAST_BOOT", APP_MODE == "demo")
 
 
 DATABASE_URL = os.getenv(
@@ -82,7 +101,7 @@ AI_PROVIDER = os.getenv("AI_PROVIDER", "ollama")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-DEMO_MODE = env_bool("DEMO_MODE", True)
+DEMO_MODE = APP_MODE == "demo"
 GITHUB_APP_CLIENT_ID = os.getenv("GITHUB_APP_CLIENT_ID", "")
 GITHUB_APP_CLIENT_SECRET = os.getenv("GITHUB_APP_CLIENT_SECRET", "")
 GITHUB_APP_PRIVATE_KEY = os.getenv("GITHUB_APP_PRIVATE_KEY", "")
@@ -526,6 +545,7 @@ async def health() -> JSONResponse:
     core_ok = all(s["ok"] for s in services.values() if s.get("detail") != "skipped")
     payload: dict[str, Any] = {
         "status": "ok" if core_ok else "degraded",
+        "app_mode": APP_MODE,
         "ai_provider": ai_review_service.provider_name,
         "demo_mode": DEMO_MODE,
         "services": services,
@@ -537,6 +557,7 @@ async def health() -> JSONResponse:
 async def auth_status() -> dict[str, Any]:
     return {
         "authenticated": False,
+        "app_mode": APP_MODE,
         "mode": "demo" if DEMO_MODE else "github_app_oauth",
         "github_app_ready": github_service.oauth_ready,
         "rbac_enabled": True,

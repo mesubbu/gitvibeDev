@@ -59,10 +59,33 @@ make up
 
 This starts the backend, frontend, and Ollama in Docker. Visit **http://localhost:3000**.
 
-### 2. Demo Mode (Default)
+**Option C — Frontend-only secure demo (no backend):**
 
-GitVibe starts in **demo mode** by default — no GitHub credentials needed.  
-You get sample repos, PRs, issues, and AI review to explore the full workflow.
+```bash
+cp .env.example .env
+APP_MODE=demo docker compose --env-file .env up -d frontend
+```
+
+This starts only Nginx + frontend with local mock API/auth/storage.
+
+### 2. Demo Mode
+
+Set `APP_MODE=demo` to run the secure offline demo — no GitHub credentials needed.  
+You get seeded repos, PRs, issues, and AI review responses stored locally in the browser.
+
+### Runtime Modes
+
+Set one variable to switch behavior:
+
+```bash
+APP_MODE=demo|development|production
+```
+
+| APP_MODE | Behavior |
+|----------|----------|
+| `demo` | Frontend-only local mocks (no backend/DB/Redis/auth services) |
+| `development` | Frontend + real backend APIs |
+| `production` | Real backend APIs with production deployment controls |
 
 ### 3. Live GitHub Mode
 

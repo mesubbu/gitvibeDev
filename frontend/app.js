@@ -1,5 +1,5 @@
 /* GitVibe — Frontend Application
- * Connects to the FastAPI backend via /api/* endpoints.
+ * Uses runtime-injected API/auth adapters based on APP_MODE.
  */
 (function () {
   "use strict";
@@ -19,31 +19,11 @@
     loading: {},
     error: null,
     theme: localStorage.getItem("gv-theme") || "dark",
+    appMode: "unknown",
   };
 
-  // ── API Client ─────────────────────────────────────────────────────
-  const api = {
-    async get(path) {
-      const res = await fetch(path);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(body.detail || `HTTP ${res.status}`);
-      }
-      return res.json();
-    },
-    async post(path, body) {
-      const res = await fetch(path, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(data.detail || `HTTP ${res.status}`);
-      }
-      return res.json();
-    },
-  };
+  let runtime = null;
+  let api = null;
 
   // ── Toast notifications ────────────────────────────────────────────
   function toast(message, type) {
@@ -56,21 +36,29 @@
     setTimeout(function () { el.remove(); }, 4000);
   }
 
+  function ensureApi() {
+    if (!api) throw new Error("Runtime API is unavailable.");
+    return api;
+  }
+
   // ── Data Fetching ──────────────────────────────────────────────────
   async function fetchHealth() {
     try {
-      state.health = await api.get("/health");
+      state.health = await ensureApi().get("/health");
     } catch (e) {
-      state.health = { status: "error", demo_mode: false, services: {} };
+      state.health = { status: "error", demo_mode: state.appMode === "demo", services: {} };
     }
     render();
   }
 
   async function fetchAuthStatus() {
     try {
-      state.authStatus = await api.get("/api/auth/status");
+      state.authStatus = await ensureApi().get("/api/auth/status");
     } catch (e) {
-      state.authStatus = { mode: "unknown", authenticated: false };
+      state.authStatus = {
+        mode: state.appMode === "demo" ? "demo" : "unknown",
+        authenticated: state.appMode === "demo",
+      };
     }
     render();
   }
@@ -80,7 +68,7 @@
     state.error = null;
     render();
     try {
-      var data = await api.get("/api/repos");
+      var data = await ensureApi().get("/api/repos");
       state.repos = data.repos || [];
     } catch (e) {
       state.error = "Failed to load repositories: " + e.message;
@@ -95,7 +83,7 @@
     state.error = null;
     render();
     try {
-      var data = await api.get("/api/repos/" + encodeURIComponent(owner) + "/" + encodeURIComponent(repo) + "/pulls");
+      var data = await ensureApi().get("/api/repos/" + encodeURIComponent(owner) + "/" + encodeURIComponent(repo) + "/pulls");
       state.pulls = data.pull_requests || [];
     } catch (e) {
       state.error = "Failed to load pull requests: " + e.message;
@@ -110,7 +98,7 @@
     state.error = null;
     render();
     try {
-      var data = await api.get("/api/repos/" + encodeURIComponent(owner) + "/" + encodeURIComponent(repo) + "/issues");
+      var data = await ensureApi().get("/api/repos/" + encodeURIComponent(owner) + "/" + encodeURIComponent(repo) + "/issues");
       state.issues = data.issues || [];
     } catch (e) {
       state.error = "Failed to load issues: " + e.message;
@@ -123,7 +111,7 @@
   async function mergePR(owner, repo, pullNumber, method) {
     try {
       toast("Merging PR #" + pullNumber + "...", "info");
-      await api.post(
+      await ensureApi().post(
         "/api/repos/" + encodeURIComponent(owner) + "/" + encodeURIComponent(repo) + "/pulls/" + pullNumber + "/merge",
         { merge_method: method || "merge" }
       );
@@ -140,7 +128,7 @@
     toast("Starting AI review...", "info");
     render();
     try {
-      var data = await api.post("/api/ai/review/jobs", {
+      var data = await ensureApi().post("/api/ai/review/jobs", {
         owner: owner,
         repo: repo,
         pull_number: pullNumber,
@@ -155,7 +143,7 @@
   function pollAIJob(jobId) {
     var interval = setInterval(async function () {
       try {
-        var data = await api.get("/api/jobs/" + jobId);
+        var data = await ensureApi().get("/api/jobs/" + jobId);
         var job = data.job;
         if (job.status === "completed") {
           clearInterval(interval);
@@ -229,8 +217,9 @@
 
     var modeText = "Loading...";
     if (state.authStatus) {
-      modeText = state.authStatus.mode === "demo" ? "Demo Mode" : "GitHub OAuth";
+      modeText = state.authStatus.mode === "demo" ? "DEMO MODE" : "GitHub OAuth";
     }
+    if (state.appMode === "demo") modeText = "DEMO MODE";
 
     return h("header", { className: "app-header" }, [
       h("div", { className: "logo", onclick: function () { navigate("repos"); } }, [
@@ -252,6 +241,18 @@
           title: "Toggle theme",
         }, state.theme === "dark" ? "☀" : "🌙"),
       ]),
+    ]);
+  }
+
+  function renderModeBanner() {
+    if (state.appMode !== "demo") return null;
+    return h("div", { className: "mode-banner" }, [
+      h("strong", null, "DEMO MODE"),
+      h(
+        "span",
+        null,
+        "Offline simulation is active. Data is stored in this browser and is not connected to backend services."
+      ),
     ]);
   }
 
@@ -558,6 +559,18 @@
       h("button", { className: "btn btn-sm", onclick: function () { navigate("repos"); } }, "← Back"),
     ]));
 
+    var runtimeCard = h("div", { className: "card" });
+    runtimeCard.appendChild(h("h3", { style: "font-size: 16px; font-weight: 600; margin-bottom: 12px" }, "Runtime Mode"));
+    runtimeCard.appendChild(h("div", { className: "setting-row" }, [
+      h("span", { className: "setting-label" }, "APP_MODE"),
+      h("span", { className: "setting-value" }, state.appMode),
+    ]));
+    runtimeCard.appendChild(h("div", { className: "setting-row" }, [
+      h("span", { className: "setting-label" }, "Backend Dependency"),
+      h("span", { className: "setting-value" }, state.appMode === "demo" ? "Not required" : "Required"),
+    ]));
+    content.push(runtimeCard);
+
     // Health status
     var healthCard = h("div", { className: "card" });
     healthCard.appendChild(h("h3", { style: "font-size: 16px; font-weight: 600; margin-bottom: 12px" }, "System Health"));
@@ -605,6 +618,10 @@
         h("span", { className: "setting-value" }, state.authStatus.mode),
       ]));
       authCard.appendChild(h("div", { className: "setting-row" }, [
+        h("span", { className: "setting-label" }, "Authenticated"),
+        h("span", { className: "setting-value" }, state.authStatus.authenticated ? "Yes" : "No"),
+      ]));
+      authCard.appendChild(h("div", { className: "setting-row" }, [
         h("span", { className: "setting-label" }, "AI Provider"),
         h("span", { className: "setting-value" }, state.authStatus.ai_provider || "—"),
       ]));
@@ -650,6 +667,7 @@
     app.innerHTML = "";
 
     app.appendChild(renderHeader());
+    if (state.appMode === "demo") app.appendChild(renderModeBanner());
 
     var main = h("main", { className: "app-main" });
 
@@ -698,8 +716,27 @@
   });
 
   // ── Bootstrap ──────────────────────────────────────────────────────
-  document.documentElement.setAttribute("data-theme", state.theme);
-  fetchHealth();
-  fetchAuthStatus();
-  fetchRepos();
+  async function bootstrap() {
+    document.documentElement.setAttribute("data-theme", state.theme);
+    try {
+      if (!window.GitVibeRuntime || typeof window.GitVibeRuntime.createRuntime !== "function") {
+        throw new Error("Runtime layer is unavailable.");
+      }
+      runtime = await window.GitVibeRuntime.createRuntime();
+      api = runtime.api;
+      state.appMode = runtime.config.appMode;
+      render();
+
+      await fetchHealth();
+      await fetchAuthStatus();
+      await fetchRepos();
+    } catch (e) {
+      state.error = "Startup failed: " + e.message;
+      state.health = { status: "error", demo_mode: state.appMode === "demo", services: {} };
+      state.authStatus = { mode: "unknown", authenticated: false };
+      render();
+    }
+  }
+
+  bootstrap();
 })();
