@@ -103,7 +103,7 @@ make update
 bash installer/install.sh --skip-clone --target-dir . --skip-up
 
 # Clone into custom path and start
-bash installer/install.sh --repo-url https://github.com/AnshumanAtrey/GitVibeDev.git --target-dir ~/gitvibedev
+bash installer/install.sh --repo-url https://github.com/mesubbu/gitvibeDev.git --target-dir ~/gitvibedev
 ```
 
 ## Ports and URLs

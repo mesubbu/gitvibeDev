@@ -39,8 +39,8 @@
 ### 1. Clone & Start
 
 ```bash
-git clone https://github.com/AnshumanAtrey/GitVibeDev.git
-cd GitVibeDev
+git clone https://github.com/mesubbu/gitvibeDev.git
+cd gitvibeDev
 ```
 
 **Option A — Local (no Docker):**

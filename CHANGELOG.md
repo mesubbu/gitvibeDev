@@ -19,5 +19,5 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Persistent background job queue with retry.
 - Keyboard-first frontend workflow shell and complete docs set under `/docs`.
 
-[Unreleased]: https://github.com/AnshumanAtrey/GitVibeDev/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/AnshumanAtrey/GitVibeDev/releases/tag/v0.2.0
+[Unreleased]: https://github.com/mesubbu/gitvibeDev/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/mesubbu/gitvibeDev/releases/tag/v0.2.0
