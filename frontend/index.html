@@ -1,49 +1,1238 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GitVibeDev</title>
+    <title>GitVibeDev Workspace</title>
     <style>
+      :root {
+        color-scheme: light dark;
+        --font-sans: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+        --space-1: 0.25rem;
+        --space-2: 0.5rem;
+        --space-3: 0.75rem;
+        --space-4: 1rem;
+        --space-5: 1.5rem;
+        --space-6: 2rem;
+        --shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+        --border-strong: 1px solid;
+      }
+
+      html[data-theme="dark"] {
+        --bg: #090d1b;
+        --surface: #11172b;
+        --surface-soft: #151e39;
+        --surface-muted: #1a2444;
+        --text: #eef2ff;
+        --text-muted: #a8b4d8;
+        --border: #2a3764;
+        --accent: #7ea2ff;
+        --accent-strong: #5d89ff;
+        --danger: #ff8a8a;
+        --success: #66d6a8;
+        --warning: #ffd066;
+      }
+
+      html[data-theme="light"] {
+        --bg: #f5f7fc;
+        --surface: #ffffff;
+        --surface-soft: #f0f4ff;
+        --surface-muted: #e8eeff;
+        --text: #111a34;
+        --text-muted: #475277;
+        --border: #c9d6fb;
+        --accent: #355ec9;
+        --accent-strong: #2648a2;
+        --danger: #b73232;
+        --success: #227a53;
+        --warning: #a86b00;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         margin: 0;
-        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-        background: #0b1020;
-        color: #dbe2ff;
+        font-family: var(--font-sans);
+        background: var(--bg);
+        color: var(--text);
       }
-      main {
-        max-width: 900px;
-        margin: 3rem auto;
-        padding: 0 1rem;
+
+      a {
+        color: var(--accent);
       }
-      .card {
-        background: #151c33;
-        border: 1px solid #253056;
-        border-radius: 12px;
-        padding: 1rem;
-        margin-top: 1rem;
+
+      .skip-link {
+        position: absolute;
+        left: -9999px;
+        top: var(--space-2);
+        z-index: 999;
+        padding: var(--space-2) var(--space-3);
+        background: var(--surface);
+        border: var(--border-strong) var(--border);
+        border-radius: var(--radius-sm);
       }
-      code {
-        color: #9bd6ff;
+
+      .skip-link:focus-visible {
+        left: var(--space-3);
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      .app {
+        min-height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-4);
+        border-bottom: var(--border-strong) var(--border);
+        background: var(--surface);
+        padding: var(--space-3) var(--space-4);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      .cluster {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+      }
+
+      .title {
+        margin: 0;
+        font-size: 1.1rem;
+      }
+
+      .subtitle {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 0.9rem;
+      }
+
+      .shell {
+        display: grid;
+        grid-template-columns: 260px 1fr;
+        min-height: 0;
+      }
+
+      .sidebar {
+        border-right: var(--border-strong) var(--border);
+        background: var(--surface);
+        padding: var(--space-4);
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-4);
+      }
+
+      .section-nav {
+        display: grid;
+        gap: var(--space-2);
+      }
+
+      .section-btn {
+        text-align: left;
+        background: transparent;
+        border: var(--border-strong) transparent;
+        color: var(--text);
+        border-radius: var(--radius-sm);
+        padding: var(--space-2) var(--space-3);
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .section-btn[aria-selected="true"] {
+        background: var(--surface-soft);
+        border-color: var(--border);
+      }
+
+      .hint-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: var(--space-2);
+        color: var(--text-muted);
+        font-size: 0.85rem;
+      }
+
+      .workspace {
+        min-width: 0;
+        padding: var(--space-4);
+        display: grid;
+      }
+
+      .panel {
+        display: grid;
+        gap: var(--space-4);
+        align-content: start;
+      }
+
+      .panel[hidden] {
+        display: none;
+      }
+
+      .surface {
+        background: var(--surface);
+        border: var(--border-strong) var(--border);
+        border-radius: var(--radius-md);
+        padding: var(--space-4);
+        box-shadow: var(--shadow);
+      }
+
+      .surface h2,
+      .surface h3,
+      .surface h4 {
+        margin-top: 0;
+      }
+
+      .grid-2 {
+        display: grid;
+        gap: var(--space-4);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid-3 {
+        display: grid;
+        gap: var(--space-3);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .stack {
+        display: grid;
+        gap: var(--space-3);
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        align-items: center;
+      }
+
+      .btn,
+      .field,
+      select,
+      textarea {
+        border-radius: var(--radius-sm);
+        border: var(--border-strong) var(--border);
+        background: var(--surface-soft);
+        color: var(--text);
+        font: inherit;
+      }
+
+      .btn {
+        cursor: pointer;
+        padding: var(--space-2) var(--space-3);
+      }
+
+      .btn:hover {
+        border-color: var(--accent);
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+
+      .btn-primary:hover {
+        background: var(--accent-strong);
+        border-color: var(--accent-strong);
+      }
+
+      .field,
+      select,
+      textarea {
+        width: 100%;
+        padding: var(--space-2) var(--space-3);
+      }
+
+      .kbd {
+        border: var(--border-strong) var(--border);
+        background: var(--surface-muted);
+        padding: 0 var(--space-2);
+        border-radius: var(--radius-sm);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.75rem;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-1);
+        border-radius: 999px;
+        border: var(--border-strong) var(--border);
+        padding: var(--space-1) var(--space-2);
+        font-size: 0.8rem;
+        background: var(--surface-muted);
+      }
+
+      .chip.success {
+        color: var(--success);
+      }
+
+      .chip.warning {
+        color: var(--warning);
+      }
+
+      .chip.danger {
+        color: var(--danger);
+      }
+
+      .list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: var(--space-2);
+      }
+
+      .list-btn {
+        width: 100%;
+        text-align: left;
+        border: var(--border-strong) var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--surface-soft);
+        color: var(--text);
+        padding: var(--space-3);
+        cursor: pointer;
+      }
+
+      .list-btn[aria-current="true"] {
+        border-color: var(--accent);
+        background: var(--surface-muted);
+      }
+
+      .meta {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+      }
+
+      .checklist {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: var(--space-2);
+      }
+
+      .checklist li {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+      }
+
+      .progress {
+        height: 8px;
+        background: var(--surface-muted);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+
+      .progress > span {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: var(--accent);
+        transition: width 120ms ease;
+      }
+
+      .diff-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--space-2);
+      }
+
+      .diff-col {
+        border: var(--border-strong) var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--surface-soft);
+        padding: var(--space-2);
+      }
+
+      .diff-col pre {
+        margin: 0;
+        white-space: pre-wrap;
+        font-size: 0.8rem;
+      }
+
+      .command {
+        border: var(--border-strong) var(--border);
+        background: var(--surface-soft);
+        padding: var(--space-2) var(--space-3);
+        border-radius: var(--radius-sm);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.85rem;
+        margin: 0;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        border: 0;
+        padding: 0;
+        clip: rect(0 0 0 0);
+        overflow: hidden;
+      }
+
+      dialog {
+        border: var(--border-strong) var(--border);
+        border-radius: var(--radius-md);
+        background: var(--surface);
+        color: var(--text);
+        width: min(680px, 92vw);
+        padding: var(--space-4);
+      }
+
+      dialog::backdrop {
+        background: rgba(0, 0, 0, 0.45);
+      }
+
+      .command-item {
+        width: 100%;
+        text-align: left;
+        margin: 0;
+        padding: var(--space-2) var(--space-3);
+        border: var(--border-strong) var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--surface-soft);
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .command-item.active {
+        border-color: var(--accent);
+      }
+
+      .footer-note {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+      }
+
+      @media (max-width: 1024px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          border-right: 0;
+          border-bottom: var(--border-strong) var(--border);
+        }
+
+        .grid-2,
+        .grid-3,
+        .diff-grid {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
   <body>
-    <main>
-      <h1>GitVibeDev</h1>
-      <p>AI-native, self-hostable GitHub frontend platform starter.</p>
-      <div class="card">
-        <strong>Quick links</strong>
-        <ul>
-          <li><a href="/health">Backend health</a></li>
-          <li><a href="/api/auth/status">Auth status</a></li>
-          <li><a href="/api/repos">Demo repositories</a></li>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <div class="app">
+      <header class="topbar" aria-label="Top controls">
+        <div>
+          <p class="title">GitVibeDev Workbench</p>
+          <p class="subtitle">Keyboard-first developer workflows</p>
+        </div>
+        <div class="cluster">
+          <button id="openPalette" class="btn" aria-label="Open command palette">
+            Command Palette <span class="kbd">/</span>
+          </button>
+          <button id="themeToggle" class="btn" aria-label="Toggle theme">Theme</button>
+          <button id="openShortcuts" class="btn" aria-label="Show keyboard shortcuts">
+            Shortcuts <span class="kbd">?</span>
+          </button>
+        </div>
+      </header>
+
+      <div class="shell">
+        <aside class="sidebar" aria-label="Primary navigation">
+          <nav class="section-nav" role="tablist" aria-label="Workflow sections">
+            <button class="section-btn" role="tab" aria-selected="true" aria-controls="panel-onboarding" data-section="onboarding">Onboarding</button>
+            <button class="section-btn" role="tab" aria-selected="false" aria-controls="panel-repos" data-section="repos">Repo navigation</button>
+            <button class="section-btn" role="tab" aria-selected="false" aria-controls="panel-pr" data-section="pr">PR review flow</button>
+            <button class="section-btn" role="tab" aria-selected="false" aria-controls="panel-ai" data-section="ai">AI review display</button>
+            <button class="section-btn" role="tab" aria-selected="false" aria-controls="panel-conflicts" data-section="conflicts">Conflict resolution</button>
+            <button class="section-btn" role="tab" aria-selected="false" aria-controls="panel-settings" data-section="settings">Settings dashboard</button>
+          </nav>
+
+          <section class="surface" aria-label="Keyboard hints">
+            <h3>Fast keys</h3>
+            <ul class="hint-list">
+              <li><span class="kbd">g</span> then <span class="kbd">o/r/p/a/c/s</span> jump section</li>
+              <li><span class="kbd">j</span>/<span class="kbd">k</span> move selected row</li>
+              <li><span class="kbd">[</span>/<span class="kbd">]</span> previous/next section</li>
+              <li><span class="kbd">t</span> toggle theme</li>
+              <li><span class="kbd">Esc</span> close dialogs</li>
+            </ul>
+          </section>
+        </aside>
+
+        <main id="main-content" class="workspace" tabindex="-1">
+          <section id="panel-onboarding" class="panel" role="region" aria-label="Onboarding workflow">
+            <div class="surface stack">
+              <div class="toolbar" style="justify-content: space-between">
+                <h2 style="margin: 0">Onboarding</h2>
+                <span class="chip success" id="onboardingStatus">0 / 5 complete</span>
+              </div>
+              <div class="progress" aria-hidden="true"><span id="onboardingProgress"></span></div>
+              <ul class="checklist" id="onboardingChecklist">
+                <li><input type="checkbox" data-step="Install stack" id="step-install" /> <label for="step-install">Install and run stack (`make up`)</label></li>
+                <li><input type="checkbox" data-step="Issue bootstrap token" id="step-token" /> <label for="step-token">Generate bootstrap access token</label></li>
+                <li><input type="checkbox" data-step="Connect GitHub OAuth" id="step-oauth" /> <label for="step-oauth">Connect GitHub App OAuth</label></li>
+                <li><input type="checkbox" data-step="Pick AI provider" id="step-provider" /> <label for="step-provider">Choose AI provider + model</label></li>
+                <li><input type="checkbox" data-step="Run first review" id="step-review" /> <label for="step-review">Run first AI-assisted PR review</label></li>
+              </ul>
+            </div>
+
+            <div class="grid-2">
+              <article class="surface stack">
+                <h3>Quick start commands</h3>
+                <p class="command">make up</p>
+                <p class="command">curl -fsS http://localhost:8080/health</p>
+                <p class="command">curl -X POST http://localhost:8080/api/auth/token -H 'x-bootstrap-token: ...'</p>
+              </article>
+
+              <article class="surface stack">
+                <h3>Getting productive fast</h3>
+                <ul class="list">
+                  <li class="meta">Use <span class="kbd">/</span> to launch commands without leaving keyboard context.</li>
+                  <li class="meta">Use <span class="kbd">g</span> + section keys to jump directly to your current workflow.</li>
+                  <li class="meta">Every panel supports one-click actions and visible keyboard alternatives.</li>
+                </ul>
+              </article>
+            </div>
+          </section>
+
+          <section id="panel-repos" class="panel" role="region" aria-label="Repository navigation" hidden>
+            <div class="surface stack">
+              <div class="toolbar" style="justify-content: space-between">
+                <h2 style="margin: 0">Repo navigation</h2>
+                <span class="chip">Fast filter</span>
+              </div>
+              <div class="toolbar">
+                <label class="sr-only" for="repoSearch">Search repositories</label>
+                <input id="repoSearch" class="field" type="search" placeholder="Filter repos by name, owner, or topic" />
+                <button class="btn" id="focusRepoList">Focus list</button>
+              </div>
+              <div class="grid-2">
+                <div class="surface stack" style="padding: var(--space-3)">
+                  <h3 style="margin-bottom: 0">Repositories</h3>
+                  <ul id="repoList" class="list" role="listbox" aria-label="Repository list"></ul>
+                </div>
+                <div class="surface stack" style="padding: var(--space-3)" id="repoDetail">
+                  <h3 style="margin-bottom: 0">Repo detail</h3>
+                  <p class="meta" id="repoMeta">Select a repository to inspect branches, issues, and pull requests.</p>
+                  <div class="grid-3" id="repoStats"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="panel-pr" class="panel" role="region" aria-label="Pull request review" hidden>
+            <div class="surface stack">
+              <div class="toolbar" style="justify-content: space-between">
+                <h2 style="margin: 0">PR review flow</h2>
+                <span class="chip warning">Minimal-click merge path</span>
+              </div>
+              <div class="grid-2">
+                <div class="surface stack" style="padding: var(--space-3)">
+                  <h3 style="margin-bottom: 0">Pull requests</h3>
+                  <ul id="prList" class="list" role="listbox" aria-label="Pull request list"></ul>
+                </div>
+                <div class="surface stack" style="padding: var(--space-3)">
+                  <h3 id="prTitle" style="margin-bottom: 0">Select a pull request</h3>
+                  <p id="prSummary" class="meta">Use j/k to move and Enter to review.</p>
+                  <div class="toolbar">
+                    <button class="btn" id="requestChanges">Request changes</button>
+                    <button class="btn" id="approvePr">Approve</button>
+                    <button class="btn btn-primary" id="mergePr">Merge</button>
+                  </div>
+                  <ul class="list" id="fileChanges"></ul>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="panel-ai" class="panel" role="region" aria-label="AI review display" hidden>
+            <div class="surface stack">
+              <div class="toolbar" style="justify-content: space-between">
+                <h2 style="margin: 0">AI review display</h2>
+                <button class="btn btn-primary" id="runAiReview">Run AI review</button>
+              </div>
+              <div class="grid-3" id="aiMetrics"></div>
+              <div class="stack" id="aiFindings"></div>
+            </div>
+          </section>
+
+          <section id="panel-conflicts" class="panel" role="region" aria-label="Conflict resolution" hidden>
+            <div class="surface stack">
+              <div class="toolbar" style="justify-content: space-between">
+                <h2 style="margin: 0">Conflict resolution UI</h2>
+                <span class="chip danger">3 unresolved conflicts</span>
+              </div>
+              <div class="toolbar">
+                <button class="btn" data-resolution="ours">Accept ours</button>
+                <button class="btn" data-resolution="theirs">Accept theirs</button>
+                <button class="btn btn-primary" data-resolution="manual">Manual merge</button>
+              </div>
+              <div class="diff-grid">
+                <div class="diff-col">
+                  <h3>Base</h3>
+                  <pre>if check_signature(payload):
+    return "ok"
+raise AuthError("invalid signature")</pre>
+                </div>
+                <div class="diff-col">
+                  <h3>Ours</h3>
+                  <pre>if not timestamp:
+    raise AuthError("missing timestamp")
+if check_signature(payload):
+    return "ok"</pre>
+                </div>
+                <div class="diff-col">
+                  <h3>Theirs</h3>
+                  <pre>if check_signature(payload) and timestamp:
+    return "ok"
+raise AuthError("invalid signature")</pre>
+                </div>
+              </div>
+              <article class="surface" style="padding: var(--space-3)">
+                <h3>Resolution plan</h3>
+                <p id="resolutionText" class="meta">Choose a strategy to apply and stage conflict resolution.</p>
+              </article>
+            </div>
+          </section>
+
+          <section id="panel-settings" class="panel" role="region" aria-label="Settings dashboard" hidden>
+            <div class="surface stack">
+              <div class="toolbar" style="justify-content: space-between">
+                <h2 style="margin: 0">Settings dashboard</h2>
+                <span class="chip">Saved locally</span>
+              </div>
+              <div class="grid-2">
+                <article class="surface stack" style="padding: var(--space-3)">
+                  <h3>Interface</h3>
+                  <label for="themeSelect">Theme</label>
+                  <select id="themeSelect">
+                    <option value="system">System</option>
+                    <option value="dark">Dark</option>
+                    <option value="light">Light</option>
+                  </select>
+                  <label><input id="compactMode" type="checkbox" /> Compact list density</label>
+                  <label><input id="motionReduce" type="checkbox" /> Reduce motion</label>
+                </article>
+
+                <article class="surface stack" style="padding: var(--space-3)">
+                  <h3>AI + provider</h3>
+                  <label for="providerSelect">Default provider</label>
+                  <select id="providerSelect">
+                    <option>ollama</option>
+                    <option>openai-compatible</option>
+                  </select>
+                  <label for="modelInput">Model</label>
+                  <input id="modelInput" class="field" value="llama3.2" />
+                  <button class="btn" id="testProvider">Test provider connection</button>
+                </article>
+              </div>
+
+              <div class="grid-2">
+                <article class="surface stack" style="padding: var(--space-3)">
+                  <h3>Workflow defaults</h3>
+                  <label><input type="checkbox" checked /> Auto-open next PR after review</label>
+                  <label><input type="checkbox" checked /> Show inline AI suggestions by default</label>
+                  <label><input type="checkbox" /> Require merge confirmation for main branch</label>
+                </article>
+
+                <article class="surface stack" style="padding: var(--space-3)">
+                  <h3>Keyboard profiles</h3>
+                  <p class="meta">Current profile: Vim-like navigation</p>
+                  <div class="toolbar">
+                    <button class="btn" id="profileVim">Use Vim</button>
+                    <button class="btn" id="profileEmacs">Use Emacs</button>
+                    <button class="btn" id="profileDefault">Use Default</button>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </section>
+
+          <p class="footer-note">Tip: start with <span class="kbd">g</span> + <span class="kbd">o</span>, then press <span class="kbd">/</span> for palette-driven navigation.</p>
+        </main>
+      </div>
+    </div>
+
+    <dialog id="commandPalette" aria-label="Command palette">
+      <form method="dialog" class="stack">
+        <div class="toolbar" style="justify-content: space-between">
+          <strong>Command palette</strong>
+          <button class="btn" value="cancel">Close</button>
+        </div>
+        <label class="sr-only" for="paletteSearch">Search commands</label>
+        <input id="paletteSearch" class="field" type="search" placeholder="Type command or section" autocomplete="off" />
+        <div id="paletteResults" class="stack"></div>
+      </form>
+    </dialog>
+
+    <dialog id="shortcutDialog" aria-label="Keyboard shortcuts">
+      <form method="dialog" class="stack">
+        <div class="toolbar" style="justify-content: space-between">
+          <strong>Keyboard shortcuts</strong>
+          <button class="btn" value="cancel">Close</button>
+        </div>
+        <ul class="hint-list">
+          <li><span class="kbd">/</span> Open command palette</li>
+          <li><span class="kbd">g</span> + <span class="kbd">o/r/p/a/c/s</span> Jump to workflow section</li>
+          <li><span class="kbd">j</span>/<span class="kbd">k</span> Move selection in repo/PR list</li>
+          <li><span class="kbd">Enter</span> Open selected repo/PR</li>
+          <li><span class="kbd">t</span> Toggle dark/light theme</li>
+          <li><span class="kbd">[</span>/<span class="kbd">]</span> Previous/next section</li>
         </ul>
-      </div>
-      <div class="card">
-        <p>Default AI provider: <code>ollama</code></p>
-        <p>Toggle demo behavior with <code>DEMO_MODE=true|false</code> in <code>.env</code>.</p>
-      </div>
-    </main>
+      </form>
+    </dialog>
+
+    <div id="liveRegion" class="sr-only" aria-live="polite"></div>
+
+    <script>
+      const sections = ["onboarding", "repos", "pr", "ai", "conflicts", "settings"];
+      const sectionLabels = {
+        onboarding: "Onboarding",
+        repos: "Repo navigation",
+        pr: "PR review flow",
+        ai: "AI review display",
+        conflicts: "Conflict resolution",
+        settings: "Settings dashboard"
+      };
+
+      const repoData = [
+        { name: "platform-api", owner: "demo-org", language: "Python", openPrs: 2, issues: 9, contributors: 6, topics: ["backend", "oauth", "security"] },
+        { name: "platform-web", owner: "demo-org", language: "TypeScript", openPrs: 1, issues: 3, contributors: 4, topics: ["ux", "a11y", "workspace"] },
+        { name: "agent-runtime", owner: "infra-lab", language: "Go", openPrs: 4, issues: 11, contributors: 7, topics: ["workers", "queue", "devtools"] }
+      ];
+
+      const prData = {
+        "platform-api": [
+          { number: 42, title: "feat: add AI repo insights endpoint", files: ["app/main.py", "app/ai_service.py", "app/jobs.py"], status: "checks passing" },
+          { number: 44, title: "fix: tighten webhook signature validation", files: ["app/security.py", "app/routes/webhooks.py"], status: "1 comment" }
+        ],
+        "platform-web": [
+          { number: 13, title: "chore: improve dashboard loading states", files: ["src/routes/dashboard.tsx", "src/components/spinner.tsx"], status: "checks passing" }
+        ],
+        "agent-runtime": [
+          { number: 8, title: "feat: persistent retry backoff for queue", files: ["queue/worker.go", "queue/store.go"], status: "changes requested" }
+        ]
+      };
+
+      const aiFindingsData = [
+        { severity: "critical", title: "Missing replay protection in webhook handler", detail: "Verify timestamp drift and nonce uniqueness before signature acceptance." },
+        { severity: "warning", title: "Potential race in job status update", detail: "Wrap state transitions in a lock to avoid stale status writes under retries." },
+        { severity: "info", title: "Improve PR summary readability", detail: "Consider grouping findings by impacted module to reduce review scanning time." }
+      ];
+
+      const paletteCommands = [
+        { id: "go-onboarding", label: "Go to onboarding", run: () => activateSection("onboarding") },
+        { id: "go-repos", label: "Go to repo navigation", run: () => activateSection("repos") },
+        { id: "go-pr", label: "Go to PR review", run: () => activateSection("pr") },
+        { id: "go-ai", label: "Go to AI review display", run: () => activateSection("ai") },
+        { id: "go-conflicts", label: "Go to conflict resolution", run: () => activateSection("conflicts") },
+        { id: "go-settings", label: "Go to settings", run: () => activateSection("settings") },
+        { id: "toggle-theme", label: "Toggle theme", run: () => toggleTheme() },
+        { id: "focus-repo-search", label: "Focus repo search", run: () => { activateSection("repos"); repoSearch.focus(); } },
+        { id: "open-shortcuts", label: "Open shortcuts", run: () => shortcutDialog.showModal() },
+        { id: "open-health", label: "Open backend health", run: () => window.open("/health", "_blank", "noopener") }
+      ];
+
+      const navButtons = Array.from(document.querySelectorAll(".section-btn"));
+      const panels = new Map(sections.map((name) => [name, document.getElementById(`panel-${name}`)]));
+      const liveRegion = document.getElementById("liveRegion");
+
+      const commandPalette = document.getElementById("commandPalette");
+      const paletteSearch = document.getElementById("paletteSearch");
+      const paletteResults = document.getElementById("paletteResults");
+      const shortcutDialog = document.getElementById("shortcutDialog");
+      const openPaletteBtn = document.getElementById("openPalette");
+      const openShortcutsBtn = document.getElementById("openShortcuts");
+      const themeToggleBtn = document.getElementById("themeToggle");
+      const themeSelect = document.getElementById("themeSelect");
+
+      const onboardingStatus = document.getElementById("onboardingStatus");
+      const onboardingProgress = document.getElementById("onboardingProgress");
+      const onboardingChecklist = document.getElementById("onboardingChecklist");
+
+      const repoSearch = document.getElementById("repoSearch");
+      const repoList = document.getElementById("repoList");
+      const repoMeta = document.getElementById("repoMeta");
+      const repoStats = document.getElementById("repoStats");
+      const focusRepoList = document.getElementById("focusRepoList");
+
+      const prList = document.getElementById("prList");
+      const prTitle = document.getElementById("prTitle");
+      const prSummary = document.getElementById("prSummary");
+      const fileChanges = document.getElementById("fileChanges");
+      const mergePrBtn = document.getElementById("mergePr");
+      const requestChangesBtn = document.getElementById("requestChanges");
+      const approvePrBtn = document.getElementById("approvePr");
+
+      const aiMetrics = document.getElementById("aiMetrics");
+      const aiFindings = document.getElementById("aiFindings");
+      const runAiReviewBtn = document.getElementById("runAiReview");
+
+      const resolutionText = document.getElementById("resolutionText");
+      const resolutionButtons = Array.from(document.querySelectorAll("[data-resolution]"));
+
+      const state = {
+        activeSection: "onboarding",
+        filteredRepos: [...repoData],
+        selectedRepo: 0,
+        selectedPr: 0,
+        paletteIndex: 0,
+        pendingGoto: false
+      };
+
+      const gotoMap = {
+        o: "onboarding",
+        r: "repos",
+        p: "pr",
+        a: "ai",
+        c: "conflicts",
+        s: "settings"
+      };
+
+      function announce(message) {
+        liveRegion.textContent = message;
+      }
+
+      function getPreferredTheme() {
+        const saved = localStorage.getItem("gitvibe-theme");
+        if (saved === "dark" || saved === "light") {
+          return saved;
+        }
+        if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
+          return "light";
+        }
+        return "dark";
+      }
+
+      function applyTheme(theme) {
+        document.documentElement.setAttribute("data-theme", theme);
+        themeToggleBtn.textContent = `Theme: ${theme}`;
+        announce(`Theme switched to ${theme}.`);
+      }
+
+      function setTheme(value) {
+        if (value === "system") {
+          localStorage.removeItem("gitvibe-theme");
+          applyTheme(getPreferredTheme());
+          return;
+        }
+        localStorage.setItem("gitvibe-theme", value);
+        applyTheme(value);
+      }
+
+      function toggleTheme() {
+        const current = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+        setTheme(current === "dark" ? "light" : "dark");
+        themeSelect.value = localStorage.getItem("gitvibe-theme") || "system";
+      }
+
+      function activateSection(sectionName) {
+        if (!sections.includes(sectionName)) {
+          return;
+        }
+        state.activeSection = sectionName;
+        for (const btn of navButtons) {
+          const selected = btn.dataset.section === sectionName;
+          btn.setAttribute("aria-selected", selected ? "true" : "false");
+        }
+        for (const [name, panel] of panels.entries()) {
+          panel.hidden = name !== sectionName;
+        }
+        announce(`Opened ${sectionLabels[sectionName]}.`);
+      }
+
+      function activateRelativeSection(direction) {
+        const idx = sections.indexOf(state.activeSection);
+        const next = (idx + direction + sections.length) % sections.length;
+        activateSection(sections[next]);
+      }
+
+      function renderOnboardingProgress() {
+        const checks = Array.from(onboardingChecklist.querySelectorAll('input[type="checkbox"]'));
+        const complete = checks.filter((box) => box.checked).length;
+        onboardingStatus.textContent = `${complete} / ${checks.length} complete`;
+        onboardingProgress.style.width = `${Math.round((complete / checks.length) * 100)}%`;
+      }
+
+      function renderRepoList() {
+        repoList.innerHTML = "";
+        state.filteredRepos.forEach((repo, index) => {
+          const li = document.createElement("li");
+          const btn = document.createElement("button");
+          btn.className = "list-btn";
+          btn.type = "button";
+          btn.setAttribute("aria-current", state.selectedRepo === index ? "true" : "false");
+          btn.dataset.index = String(index);
+          btn.innerHTML = `<strong>${repo.owner}/${repo.name}</strong><br /><span class="meta">${repo.language} • ${repo.openPrs} open PRs • ${repo.issues} issues</span>`;
+          btn.addEventListener("click", () => {
+            state.selectedRepo = index;
+            state.selectedPr = 0;
+            renderRepoList();
+            renderRepoDetail();
+            renderPrList();
+            announce(`Selected repository ${repo.owner}/${repo.name}.`);
+          });
+          li.appendChild(btn);
+          repoList.appendChild(li);
+        });
+        if (state.selectedRepo > state.filteredRepos.length - 1) {
+          state.selectedRepo = Math.max(0, state.filteredRepos.length - 1);
+        }
+      }
+
+      function renderRepoDetail() {
+        const selected = state.filteredRepos[state.selectedRepo];
+        if (!selected) {
+          repoMeta.textContent = "No repositories match this filter.";
+          repoStats.innerHTML = "";
+          return;
+        }
+        repoMeta.textContent = `${selected.owner}/${selected.name} • ${selected.language} • topics: ${selected.topics.join(", ")}`;
+        const statCards = [
+          { label: "Open PRs", value: selected.openPrs },
+          { label: "Open Issues", value: selected.issues },
+          { label: "Contributors", value: selected.contributors }
+        ];
+        repoStats.innerHTML = "";
+        statCards.forEach((card) => {
+          const el = document.createElement("article");
+          el.className = "surface";
+          el.style.padding = "var(--space-2)";
+          el.innerHTML = `<strong>${card.value}</strong><br /><span class="meta">${card.label}</span>`;
+          repoStats.appendChild(el);
+        });
+      }
+
+      function currentPrItems() {
+        const selected = state.filteredRepos[state.selectedRepo];
+        if (!selected) return [];
+        return prData[selected.name] || [];
+      }
+
+      function renderPrList() {
+        const items = currentPrItems();
+        prList.innerHTML = "";
+        items.forEach((pr, index) => {
+          const li = document.createElement("li");
+          const btn = document.createElement("button");
+          btn.className = "list-btn";
+          btn.type = "button";
+          btn.setAttribute("aria-current", state.selectedPr === index ? "true" : "false");
+          btn.innerHTML = `<strong>#${pr.number}</strong> ${pr.title}<br /><span class="meta">${pr.status}</span>`;
+          btn.addEventListener("click", () => {
+            state.selectedPr = index;
+            renderPrList();
+            renderPrDetail();
+            announce(`Selected pull request #${pr.number}.`);
+          });
+          li.appendChild(btn);
+          prList.appendChild(li);
+        });
+        if (state.selectedPr > items.length - 1) {
+          state.selectedPr = Math.max(0, items.length - 1);
+        }
+        renderPrDetail();
+      }
+
+      function renderPrDetail() {
+        const items = currentPrItems();
+        const item = items[state.selectedPr];
+        if (!item) {
+          prTitle.textContent = "No pull requests";
+          prSummary.textContent = "No pull requests for this repository.";
+          fileChanges.innerHTML = "";
+          return;
+        }
+        prTitle.textContent = `#${item.number} ${item.title}`;
+        prSummary.textContent = `Status: ${item.status}. Review files, then approve or request changes.`;
+        fileChanges.innerHTML = "";
+        item.files.forEach((file) => {
+          const li = document.createElement("li");
+          li.className = "list-btn";
+          li.innerHTML = `<strong>${file}</strong><br /><span class="meta">Open inline comment with Enter</span>`;
+          fileChanges.appendChild(li);
+        });
+      }
+
+      function renderAiPanel() {
+        aiMetrics.innerHTML = "";
+        const metricCards = [
+          { label: "Critical", value: aiFindingsData.filter((x) => x.severity === "critical").length, cls: "danger" },
+          { label: "Warnings", value: aiFindingsData.filter((x) => x.severity === "warning").length, cls: "warning" },
+          { label: "Suggestions", value: aiFindingsData.filter((x) => x.severity === "info").length, cls: "success" }
+        ];
+        metricCards.forEach((m) => {
+          const card = document.createElement("article");
+          card.className = "surface";
+          card.style.padding = "var(--space-3)";
+          card.innerHTML = `<span class="chip ${m.cls}">${m.label}</span><h3 style="margin:0.5rem 0 0">${m.value}</h3>`;
+          aiMetrics.appendChild(card);
+        });
+
+        aiFindings.innerHTML = "";
+        aiFindingsData.forEach((finding) => {
+          const item = document.createElement("article");
+          item.className = "surface stack";
+          item.style.padding = "var(--space-3)";
+          item.innerHTML = `<div class="toolbar" style="justify-content: space-between"><strong>${finding.title}</strong><span class="chip ${finding.severity === "critical" ? "danger" : finding.severity === "warning" ? "warning" : "success"}">${finding.severity}</span></div><p class="meta" style="margin:0">${finding.detail}</p>`;
+          aiFindings.appendChild(item);
+        });
+      }
+
+      function applyResolution(kind) {
+        const text = {
+          ours: "Applied OURS strategy: keep local hardening checks and re-run tests.",
+          theirs: "Applied THEIRS strategy: adopt incoming branch changes and verify auth flow.",
+          manual: "Manual strategy selected: open side-by-side editor and compose final patch."
+        };
+        resolutionText.textContent = text[kind] || "Resolution pending.";
+        announce(resolutionText.textContent);
+      }
+
+      function runListNavigation(direction) {
+        if (state.activeSection === "repos") {
+          if (!state.filteredRepos.length) return;
+          state.selectedRepo = Math.max(0, Math.min(state.filteredRepos.length - 1, state.selectedRepo + direction));
+          state.selectedPr = 0;
+          renderRepoList();
+          renderRepoDetail();
+          renderPrList();
+          return;
+        }
+        if (state.activeSection === "pr") {
+          const items = currentPrItems();
+          if (!items.length) return;
+          state.selectedPr = Math.max(0, Math.min(items.length - 1, state.selectedPr + direction));
+          renderPrList();
+        }
+      }
+
+      function filteredCommands(query) {
+        const q = query.trim().toLowerCase();
+        if (!q) return paletteCommands;
+        return paletteCommands.filter((cmd) => cmd.label.toLowerCase().includes(q));
+      }
+
+      function renderPalette(query = "") {
+        const commands = filteredCommands(query);
+        if (!commands.length) {
+          paletteResults.innerHTML = '<p class="meta">No commands match.</p>';
+          state.paletteIndex = 0;
+          return;
+        }
+        state.paletteIndex = Math.min(state.paletteIndex, commands.length - 1);
+        paletteResults.innerHTML = "";
+        commands.forEach((cmd, index) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = `command-item${state.paletteIndex === index ? " active" : ""}`;
+          btn.textContent = cmd.label;
+          btn.addEventListener("click", () => {
+            commandPalette.close();
+            cmd.run();
+          });
+          paletteResults.appendChild(btn);
+        });
+      }
+
+      function executePaletteSelection() {
+        const commands = filteredCommands(paletteSearch.value);
+        const cmd = commands[state.paletteIndex];
+        if (!cmd) return;
+        commandPalette.close();
+        cmd.run();
+      }
+
+      function initEventHandlers() {
+        navButtons.forEach((btn) => {
+          btn.addEventListener("click", () => activateSection(btn.dataset.section));
+        });
+
+        themeToggleBtn.addEventListener("click", toggleTheme);
+        themeSelect.addEventListener("change", () => setTheme(themeSelect.value));
+
+        openPaletteBtn.addEventListener("click", () => {
+          renderPalette("");
+          commandPalette.showModal();
+          paletteSearch.value = "";
+          paletteSearch.focus();
+        });
+
+        openShortcutsBtn.addEventListener("click", () => shortcutDialog.showModal());
+
+        paletteSearch.addEventListener("input", () => {
+          state.paletteIndex = 0;
+          renderPalette(paletteSearch.value);
+        });
+
+        paletteSearch.addEventListener("keydown", (event) => {
+          const commands = filteredCommands(paletteSearch.value);
+          if (!commands.length) return;
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            state.paletteIndex = Math.min(commands.length - 1, state.paletteIndex + 1);
+            renderPalette(paletteSearch.value);
+          } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            state.paletteIndex = Math.max(0, state.paletteIndex - 1);
+            renderPalette(paletteSearch.value);
+          } else if (event.key === "Enter") {
+            event.preventDefault();
+            executePaletteSelection();
+          }
+        });
+
+        onboardingChecklist.addEventListener("change", renderOnboardingProgress);
+
+        repoSearch.addEventListener("input", () => {
+          const query = repoSearch.value.trim().toLowerCase();
+          state.filteredRepos = repoData.filter((repo) =>
+            `${repo.owner}/${repo.name} ${repo.topics.join(" ")}`.toLowerCase().includes(query)
+          );
+          state.selectedRepo = 0;
+          state.selectedPr = 0;
+          renderRepoList();
+          renderRepoDetail();
+          renderPrList();
+        });
+
+        focusRepoList.addEventListener("click", () => {
+          const first = repoList.querySelector("button");
+          if (first instanceof HTMLButtonElement) {
+            first.focus();
+          }
+        });
+
+        mergePrBtn.addEventListener("click", () => announce("Merge queued for selected pull request."));
+        requestChangesBtn.addEventListener("click", () => announce("Requested changes on selected pull request."));
+        approvePrBtn.addEventListener("click", () => announce("Approved selected pull request."));
+
+        runAiReviewBtn.addEventListener("click", () => announce("AI review started. Findings refreshed."));
+
+        resolutionButtons.forEach((btn) => {
+          btn.addEventListener("click", () => applyResolution(btn.dataset.resolution));
+        });
+
+        document.getElementById("testProvider").addEventListener("click", () => announce("Provider check queued."));
+        document.getElementById("profileVim").addEventListener("click", () => announce("Keyboard profile switched to Vim-like."));
+        document.getElementById("profileEmacs").addEventListener("click", () => announce("Keyboard profile switched to Emacs-like."));
+        document.getElementById("profileDefault").addEventListener("click", () => announce("Keyboard profile switched to default."));
+
+        document.addEventListener("keydown", (event) => {
+          if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) {
+            if (event.key !== "Escape") return;
+          }
+
+          if (event.key === "Escape") {
+            if (commandPalette.open) commandPalette.close();
+            if (shortcutDialog.open) shortcutDialog.close();
+            state.pendingGoto = false;
+            return;
+          }
+
+          if (event.key === "/") {
+            event.preventDefault();
+            renderPalette("");
+            commandPalette.showModal();
+            paletteSearch.value = "";
+            paletteSearch.focus();
+            return;
+          }
+
+          if (event.key === "?") {
+            event.preventDefault();
+            shortcutDialog.showModal();
+            return;
+          }
+
+          if (event.key.toLowerCase() === "t") {
+            event.preventDefault();
+            toggleTheme();
+            return;
+          }
+
+          if (event.key === "[") {
+            event.preventDefault();
+            activateRelativeSection(-1);
+            return;
+          }
+
+          if (event.key === "]") {
+            event.preventDefault();
+            activateRelativeSection(1);
+            return;
+          }
+
+          if (state.pendingGoto) {
+            const mapped = gotoMap[event.key.toLowerCase()];
+            state.pendingGoto = false;
+            if (mapped) {
+              event.preventDefault();
+              activateSection(mapped);
+            }
+            return;
+          }
+
+          if (event.key.toLowerCase() === "g") {
+            state.pendingGoto = true;
+            window.setTimeout(() => {
+              state.pendingGoto = false;
+            }, 1000);
+            return;
+          }
+
+          if (event.key.toLowerCase() === "j") {
+            event.preventDefault();
+            runListNavigation(1);
+            return;
+          }
+
+          if (event.key.toLowerCase() === "k") {
+            event.preventDefault();
+            runListNavigation(-1);
+          }
+        });
+      }
+
+      function boot() {
+        applyTheme(getPreferredTheme());
+        themeSelect.value = localStorage.getItem("gitvibe-theme") || "system";
+        renderOnboardingProgress();
+        renderRepoList();
+        renderRepoDetail();
+        renderPrList();
+        renderAiPanel();
+        applyResolution("manual");
+        initEventHandlers();
+      }
+
+      boot();
+    </script>
   </body>
 </html>
