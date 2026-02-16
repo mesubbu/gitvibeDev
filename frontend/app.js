@@ -18,7 +18,7 @@
     aiJobId: null,
     loading: {},
     error: null,
-    theme: localStorage.getItem("gv-theme") || "dark",
+    theme: localStorage.getItem("gv-theme") || "theme_preview_Flutter",
     appMode: "unknown",
   };
 
@@ -182,8 +182,12 @@
     }
   }
 
+  function isDarkTheme(themeName) {
+    return themeName === "dark" || themeName === "theme_preview_Flutter";
+  }
+
   function toggleTheme() {
-    state.theme = state.theme === "dark" ? "light" : "dark";
+    state.theme = isDarkTheme(state.theme) ? "light" : "theme_preview_Flutter";
     localStorage.setItem("gv-theme", state.theme);
     document.documentElement.setAttribute("data-theme", state.theme);
     render();
@@ -241,7 +245,7 @@
           className: "btn btn-sm btn-icon",
           onclick: toggleTheme,
           title: "Toggle theme",
-        }, state.theme === "dark" ? "☀" : "🌙"),
+        }, isDarkTheme(state.theme) ? "☀" : "🌙"),
       ]),
     ]);
   }
@@ -640,7 +644,7 @@
     themeCard.appendChild(h("div", { className: "setting-row" }, [
       h("span", { className: "setting-label" }, "Theme"),
       h("button", { className: "btn btn-sm", onclick: toggleTheme },
-        state.theme === "dark" ? "Switch to Light" : "Switch to Dark"),
+        isDarkTheme(state.theme) ? "Switch to Light" : "Switch to Theme Preview"),
     ]));
     content.push(themeCard);
 
