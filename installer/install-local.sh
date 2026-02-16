@@ -7,11 +7,14 @@ VENV_DIR="$REPO_ROOT/.venv"
 PIDS_FILE="$REPO_ROOT/.gitvibe.pids"
 BACKEND_LOG="$REPO_ROOT/.gitvibe.backend.log"
 FRONTEND_LOG="$REPO_ROOT/.gitvibe.frontend.log"
+LOCAL_DATA_DIR="$REPO_ROOT/.data"
+LOCAL_AUDIT_LOG_FILE="$LOCAL_DATA_DIR/logs/audit.log"
+LOCAL_VAULT_FILE="$LOCAL_DATA_DIR/vault/secrets.enc"
 
-BACKEND_HOST="127.0.0.1"
-BACKEND_PORT="8000"
-FRONTEND_HOST="127.0.0.1"
-FRONTEND_PORT="3000"
+BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
+BACKEND_PORT="${BACKEND_PORT:-8000}"
+FRONTEND_HOST="${FRONTEND_HOST:-127.0.0.1}"
+FRONTEND_PORT="${FRONTEND_PORT:-3000}"
 
 info() {
   printf '[INFO] %s\n' "$*"
@@ -63,7 +66,7 @@ stop_pid() {
   fi
 
   local command_line
-  command_line="$(ps -p "$pid" -o args= 2>/dev/null || true)"
+  command_line="$(ps -ww -p "$pid" -o args= 2>/dev/null || true)"
   if [[ -n "$expected_fragment" && "$command_line" != *"$expected_fragment"* ]]; then
     warn "Skipping $label PID $pid; command does not match expected process."
     return
@@ -115,14 +118,18 @@ start_local() {
 
   ensure_env_file
   ensure_venv
+  mkdir -p "$LOCAL_DATA_DIR/logs" "$LOCAL_DATA_DIR/vault"
+  rm -f "$LOCAL_VAULT_FILE"
 
   info "Starting backend on http://$BACKEND_HOST:$BACKEND_PORT ..."
-  (
-    cd "$REPO_ROOT/backend"
-    APP_MODE=demo DEMO_MODE=true FAST_BOOT=true \
-      "$VENV_DIR/bin/python" -m uvicorn app.main:app --host "$BACKEND_HOST" --port "$BACKEND_PORT" \
-      >"$BACKEND_LOG" 2>&1
-  ) &
+  APP_MODE=demo DEMO_MODE=true FAST_BOOT=true \
+    AUDIT_LOG_FILE="$LOCAL_AUDIT_LOG_FILE" \
+    VAULT_FILE="$LOCAL_VAULT_FILE" \
+    "$VENV_DIR/bin/python" -m uvicorn app.main:app \
+    --app-dir "$REPO_ROOT/backend" \
+    --host "$BACKEND_HOST" \
+    --port "$BACKEND_PORT" \
+    >"$BACKEND_LOG" 2>&1 &
   local backend_pid="$!"
   sleep 1
   is_running "$backend_pid" || die "Backend failed to start. Check $BACKEND_LOG"
