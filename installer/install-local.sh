@@ -50,9 +50,13 @@ read_pid() {
 write_pids() {
   local backend_pid="$1"
   local frontend_pid="$2"
+  local backend_port="$3"
+  local frontend_port="$4"
   cat > "$PIDS_FILE" <<EOF
 backend=$backend_pid
 frontend=$frontend_pid
+backend_port=$backend_port
+frontend_port=$frontend_port
 EOF
 }
 
@@ -102,13 +106,62 @@ ensure_venv() {
   "$VENV_DIR/bin/python" -m pip install -r "$REPO_ROOT/backend/requirements.txt" >/dev/null
 }
 
+port_is_available() {
+  local host="$1"
+  local port="$2"
+  python3 - "$host" "$port" <<'PY'
+import socket
+import sys
+
+host = sys.argv[1]
+port = int(sys.argv[2])
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    sock.bind((host, port))
+except OSError:
+    raise SystemExit(1)
+finally:
+    sock.close()
+PY
+}
+
+pick_available_port() {
+  local host="$1"
+  local requested_port="$2"
+  local label="$3"
+  local env_name="$4"
+  local port="$requested_port"
+  local attempt=0
+  local max_attempts=100
+
+  if port_is_available "$host" "$port"; then
+    printf '%s' "$port"
+    return
+  fi
+
+  warn "$label port $requested_port is in use. Searching for a free port..."
+  while (( attempt < max_attempts )); do
+    attempt=$((attempt + 1))
+    port=$((requested_port + attempt))
+    if port_is_available "$host" "$port"; then
+      warn "$label will use port $port. Set $env_name to pin a specific port."
+      printf '%s' "$port"
+      return
+    fi
+  done
+
+  die "$label could not find a free port near $requested_port. Set $env_name manually."
+}
+
 start_local() {
-  local existing_backend existing_frontend
+  local existing_backend existing_frontend existing_frontend_port
   existing_backend="$(read_pid backend)"
   existing_frontend="$(read_pid frontend)"
+  existing_frontend_port="$(read_pid frontend_port)"
 
   if is_running "$existing_backend" && is_running "$existing_frontend"; then
-    info "Local services are already running at http://localhost:$FRONTEND_PORT"
+    info "Local services are already running at http://localhost:${existing_frontend_port:-$FRONTEND_PORT}"
     return
   fi
   if [[ -f "$PIDS_FILE" ]]; then
@@ -120,6 +173,7 @@ start_local() {
   ensure_venv
   mkdir -p "$LOCAL_DATA_DIR/logs" "$LOCAL_DATA_DIR/vault"
   rm -f "$LOCAL_VAULT_FILE"
+  BACKEND_PORT="$(pick_available_port "$BACKEND_HOST" "$BACKEND_PORT" "Backend" "BACKEND_PORT")"
 
   info "Starting backend on http://$BACKEND_HOST:$BACKEND_PORT ..."
   APP_MODE=demo DEMO_MODE=true FAST_BOOT=true \
@@ -133,6 +187,7 @@ start_local() {
   local backend_pid="$!"
   sleep 1
   is_running "$backend_pid" || die "Backend failed to start. Check $BACKEND_LOG"
+  FRONTEND_PORT="$(pick_available_port "$FRONTEND_HOST" "$FRONTEND_PORT" "Frontend" "FRONTEND_PORT")"
 
   info "Starting frontend local proxy on http://$FRONTEND_HOST:$FRONTEND_PORT ..."
   APP_MODE=demo DEMO_NAMESPACE=gitvibe_demo_v1 \
@@ -149,7 +204,7 @@ start_local() {
     die "Frontend proxy failed to start. Check $FRONTEND_LOG"
   fi
 
-  write_pids "$backend_pid" "$frontend_pid"
+  write_pids "$backend_pid" "$frontend_pid" "$BACKEND_PORT" "$FRONTEND_PORT"
   info "Local stack started."
   info "Frontend: http://localhost:$FRONTEND_PORT"
   info "Backend:  http://localhost:$BACKEND_PORT"
