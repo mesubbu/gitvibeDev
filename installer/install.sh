@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
+trap 'printf "\n[ERROR] Installer failed at line %s while running: %s\n" "$LINENO" "$BASH_COMMAND" >&2' ERR
 
 # One-command bootstrap:
 # curl -fsSL https://example.com/install.sh | bash
@@ -197,10 +198,12 @@ main() {
   while [ $# -gt 0 ]; do
     case "$1" in
       --repo-url)
+        [ $# -ge 2 ] || die "Missing value for --repo-url"
         repo_url="$2"
         shift 2
         ;;
       --target-dir)
+        [ $# -ge 2 ] || die "Missing value for --target-dir"
         target_dir="$2"
         shift 2
         ;;

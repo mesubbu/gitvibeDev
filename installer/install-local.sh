@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eo pipefail
+set -Eeo pipefail
 
 # GitVibeDev — Local installer (no Docker required)
 # Usage: bash installer/install-local.sh [start|stop]
@@ -7,7 +7,7 @@ set -eo pipefail
 # Starts the FastAPI backend directly with a Python venv.
 # Serves the frontend via Python's built-in HTTP server.
 
-trap 'echo ""; echo "[FAIL]  Installer exited unexpectedly at line $LINENO. Re-run with: bash -x installer/install-local.sh start" >&2' ERR
+trap 'echo ""; echo "[FAIL]  Installer failed at line $LINENO while running: $BASH_COMMAND" >&2; echo "[FAIL]  Re-run with: bash -x installer/install-local.sh start" >&2' ERR
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -24,6 +24,13 @@ log()  { printf '\033[1;34m[INFO]\033[0m  %s\n' "$*"; }
 warn() { printf '\033[1;33m[WARN]\033[0m  %s\n' "$*" >&2; }
 ok()   { printf '\033[1;32m[ OK ]\033[0m  %s\n' "$*"; }
 die()  { printf '\033[1;31m[FAIL]\033[0m  %s\n' "$*" >&2; exit 1; }
+
+trim_whitespace() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
 
 # ── Preflight checks ─────────────────────────────────────────────────
 check_python() {
@@ -154,9 +161,16 @@ load_env() {
   while IFS='=' read -r key value; do
     # Skip blank lines and comments
     [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
-    # Strip leading/trailing whitespace from key
-    key="$(echo "$key" | xargs)"
+    # Strip leading/trailing whitespace and tolerate `export KEY=value`
+    key="$(trim_whitespace "$key")"
+    if [[ "$key" == export[[:space:]]* ]]; then
+      key="$(trim_whitespace "${key#export}")"
+    fi
     [[ -z "$key" ]] && continue
+    if [[ ! "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+      warn "Skipping invalid environment key: $key"
+      continue
+    fi
     export "$key"="${value:-}"
   done < "$ENV_FILE"
 
