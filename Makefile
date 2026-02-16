@@ -5,7 +5,7 @@ ENV_FILE := .env
 INSTALLER := installer/install.sh
 PYTHON ?= python3
 
-.PHONY: up up-full down logs reset update dev-deps test-fast test test-integration test-stress coverage
+.PHONY: up up-full down logs reset update local local-stop dev-deps test-fast test test-integration test-stress coverage
 
 # Starts/bootstraps the default stack (backend + frontend + ollama).
 up:
@@ -15,6 +15,14 @@ up:
 up-full:
 	@bash $(INSTALLER) --skip-clone --target-dir .
 	@docker compose --env-file $(ENV_FILE) --profile full up -d --build
+
+# Starts locally without Docker (Python venv + built-in HTTP server).
+local:
+	@bash installer/install-local.sh start
+
+# Stops the local (non-Docker) stack.
+local-stop:
+	@bash installer/install-local.sh stop
 
 # Stops the stack while keeping volumes.
 down:

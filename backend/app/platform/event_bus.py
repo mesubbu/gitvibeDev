@@ -35,7 +35,7 @@ class AsyncEventBus:
 
     def __init__(self, max_events: int = 1_000) -> None:
         self._handlers: dict[str, list[EventHandler]] = defaultdict(list)
-        self._recent_events: deque[EventEnvelope] = deque(maxlen=max(10, max_events))
+        self._recent_events: deque[EventEnvelope] = deque(maxlen=max(1, max_events))
         self._lock = asyncio.Lock()
 
     def subscribe(self, topic: str, handler: EventHandler) -> None:

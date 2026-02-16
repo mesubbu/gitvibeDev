@@ -45,6 +45,11 @@ docker-compose.override.yml
 # Vault secrets
 *.enc
 
+# Local installer runtime
+.data/
+.gitvibe.pids
+.frontend-server.py
+
 # Node (if frontend evolves)
 node_modules/
 

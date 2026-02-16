@@ -13,7 +13,28 @@ This guide gets GitVibeDev running on Linux or macOS.
 
 > The installer can auto-install Docker in many cases, but you still need permission to run it.
 
-## Quick start (recommended)
+## Quick start — Local (no Docker)
+
+If you don't have Docker, use the local installer:
+
+```bash
+make local
+```
+
+This will:
+- Create a Python venv in `.venv/`
+- Bootstrap pip and install dependencies
+- Start the FastAPI backend on port 8000
+- Start a lightweight dev server on port 3000 with API proxying
+- Enable demo mode and fast boot automatically
+
+Stop with:
+
+```bash
+make local-stop
+```
+
+## Quick start — Docker (recommended)
 
 Run from repository root:
 

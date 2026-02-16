@@ -41,6 +41,19 @@
 ```bash
 git clone https://github.com/AnshumanAtrey/GitVibeDev.git
 cd GitVibeDev
+```
+
+**Option A — Local (no Docker):**
+
+```bash
+make local
+```
+
+This creates a Python venv, installs dependencies, and starts the backend + frontend dev server. Visit **http://localhost:3000**.
+
+**Option B — Docker:**
+
+```bash
 make up
 ```
 
@@ -97,8 +110,11 @@ make down && make up
 
 | Profile | Services | Use Case |
 |---------|----------|----------|
-| `make up` (default) | Backend + Frontend + Ollama | Demo & development |
+| `make local` | Backend + Frontend (Python only) | Quick local dev, no Docker |
+| `make up` (default) | Backend + Frontend + Ollama | Demo & Docker-based dev |
 | `make up-full` | + PostgreSQL + Redis | Production with persistence |
+
+Stop local services with `make local-stop`.
 
 ---
 

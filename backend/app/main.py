@@ -24,8 +24,6 @@ except ImportError:
     Redis = None  # type: ignore[assignment,misc]
     RedisError = OSError  # type: ignore[assignment,misc]
 
-FAST_BOOT = env_bool("FAST_BOOT", False)
-
 from .ai_service import AIProviderError, AIReviewRequestContext, AIReviewService
 from .demo_service import DemoDataService
 from .github_service import GitHubConfig, GitHubService
@@ -69,6 +67,8 @@ from .security import (
     env_int,
 )
 from .vault import LocalVault
+
+FAST_BOOT = env_bool("FAST_BOOT", False)
 
 
 DATABASE_URL = os.getenv(
