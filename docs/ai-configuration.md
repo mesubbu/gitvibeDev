@@ -23,7 +23,7 @@ Start stack and check health:
 
 ```bash
 make up
-curl -fsS http://localhost:8080/api/ai/status
+curl -fsS http://localhost:3000/api/ai/status
 ```
 
 ## Configure OpenAI-compatible API
@@ -47,7 +47,7 @@ make up
 ## Run synchronous AI review
 
 ```bash
-curl -sS -X POST http://localhost:8080/api/ai/review           -H 'Content-Type: application/json'           -H "Authorization: Bearer ${ACCESS_TOKEN}"           -H "x-csrf-token: ${CSRF_TOKEN}"           -d '{
+curl -sS -X POST http://localhost:3000/api/ai/review           -H 'Content-Type: application/json'           -H "Authorization: Bearer ${ACCESS_TOKEN}"           -H "x-csrf-token: ${CSRF_TOKEN}"           -d '{
     "owner":"demo-org",
     "repo":"platform-api",
     "pull_number":42,
@@ -58,7 +58,7 @@ curl -sS -X POST http://localhost:8080/api/ai/review           -H 'Content-Type:
 ## Run asynchronous AI review job with retries
 
 ```bash
-RESPONSE=$(curl -sS -X POST http://localhost:8080/api/ai/review/jobs           -H 'Content-Type: application/json'           -H "Authorization: Bearer ${ACCESS_TOKEN}"           -H "x-csrf-token: ${CSRF_TOKEN}"           -d '{
+RESPONSE=$(curl -sS -X POST http://localhost:3000/api/ai/review/jobs           -H 'Content-Type: application/json'           -H "Authorization: Bearer ${ACCESS_TOKEN}"           -H "x-csrf-token: ${CSRF_TOKEN}"           -d '{
     "owner":"demo-org",
     "repo":"platform-api",
     "pull_number":42,
@@ -73,7 +73,7 @@ Poll job status:
 
 ```bash
 JOB_ID=<paste_job_id>
-curl -sS "http://localhost:8080/api/jobs/${JOB_ID}"           -H "Authorization: Bearer ${ACCESS_TOKEN}"
+curl -sS "http://localhost:3000/api/jobs/${JOB_ID}"           -H "Authorization: Bearer ${ACCESS_TOKEN}"
 ```
 
 ## Queue tuning

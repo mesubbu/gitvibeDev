@@ -1,0 +1,7 @@
+# Default ownership (replace with real org/user handles)
+* @AnshumanAtrey/core-maintainers
+
+/backend/ @AnshumanAtrey/backend-maintainers
+/frontend/ @AnshumanAtrey/frontend-maintainers
+/docs/ @AnshumanAtrey/docs-maintainers
+/.github/ @AnshumanAtrey/core-maintainers

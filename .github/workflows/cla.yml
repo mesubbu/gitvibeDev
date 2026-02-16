@@ -1,0 +1,19 @@
+name: CLA
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, closed]
+
+jobs:
+  cla-assistant:
+    runs-on: ubuntu-latest
+    steps:
+      - name: CLA Assistant
+        uses: contributor-assistant/github-action@v2.6.1
+        with:
+          path-to-signatures: '.github/cla-signatures.json'
+          path-to-document: 'docs/community/cla/individual-cla.md'
+          branch: 'main'
+          allowlist: 'dependabot[bot],github-actions[bot]'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

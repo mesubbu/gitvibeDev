@@ -71,7 +71,7 @@ make up
 ## Run the plugin via API
 
 ```bash
-curl -sS -X POST http://localhost:8080/api/plugins/echo-plugin/run \
+curl -sS -X POST http://localhost:3000/api/plugins/echo-plugin/run \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   -H "x-csrf-token: ${CSRF_TOKEN}" \

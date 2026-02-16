@@ -6,19 +6,55 @@ import secrets
 from hashlib import sha256
 from typing import Any
 
-import asyncpg
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
-from redis.asyncio import Redis
-from redis.exceptions import RedisError
+
+# Postgres and Redis are optional — used only for health checks when available.
+try:
+    import asyncpg
+except ImportError:
+    asyncpg = None  # type: ignore[assignment]
+
+try:
+    from redis.asyncio import Redis
+    from redis.exceptions import RedisError
+except ImportError:
+    Redis = None  # type: ignore[assignment,misc]
+    RedisError = OSError  # type: ignore[assignment,misc]
+
+FAST_BOOT = env_bool("FAST_BOOT", False)
 
 from .ai_service import AIProviderError, AIReviewRequestContext, AIReviewService
 from .demo_service import DemoDataService
 from .github_service import GitHubConfig, GitHubService
 from .job_queue import PersistentJobQueue
-from .plugin_sandbox import PluginSandbox, PluginSandboxError
+from .plugin_sandbox import PluginSandbox
+from .platform import (
+    AgentContext,
+    AgentFramework,
+    AgentFrameworkError,
+    AgentSpec,
+    AsyncEventBus,
+    BaseSDKPlugin,
+    DemoGitProvider,
+    GitHubGitProvider,
+    GitLabGitProvider,
+    GitProviderError,
+    GitProviderRouter,
+    PluginDescriptor,
+    PluginExecutionContext,
+    PluginFramework,
+    PluginFrameworkError,
+    PluginPermissions,
+    ServiceBoundaryCatalog,
+    WorkflowDefinition,
+    WorkflowEngine,
+    WorkflowEngineError,
+    WorkflowExecutionContext,
+    WorkflowStep,
+)
 from .security import (
     ROLE_LEVELS,
     AuditLogMiddleware,
@@ -52,19 +88,20 @@ GITHUB_APP_CLIENT_SECRET = os.getenv("GITHUB_APP_CLIENT_SECRET", "")
 GITHUB_APP_PRIVATE_KEY = os.getenv("GITHUB_APP_PRIVATE_KEY", "")
 GITHUB_OAUTH_REDIRECT_URI = os.getenv("GITHUB_OAUTH_REDIRECT_URI", "")
 APP_ENCRYPTION_KEY = os.getenv("APP_ENCRYPTION_KEY", "change_me")
+PLUGIN_ROOT = os.getenv("PLUGIN_ROOT", "/app/plugins")
 
 security_config = SecurityConfig.from_env()
 vault = LocalVault(file_path=security_config.vault_file, master_key=APP_ENCRYPTION_KEY)
 audit_logger = AuditLogger(file_path=security_config.audit_log_file)
 token_service = TokenService(config=security_config, vault=vault)
+plugin_allowlist = {
+    item.strip() for item in os.getenv("PLUGIN_ALLOWLIST", "").split(",") if item.strip()
+}
 plugin_sandbox = PluginSandbox(
     enabled=env_bool("PLUGIN_SANDBOX_ENABLED", False),
-    allowlist={
-        item.strip()
-        for item in os.getenv("PLUGIN_ALLOWLIST", "").split(",")
-        if item.strip()
-    },
+    allowlist=plugin_allowlist,
     timeout_seconds=max(1, env_int("PLUGIN_TIMEOUT_SECONDS", 5)),
+    plugins_root=PLUGIN_ROOT,
 )
 github_service = GitHubService(
     config=GitHubConfig(
@@ -91,6 +128,24 @@ job_queue = PersistentJobQueue(
     retry_base_seconds=max(1, env_int("JOB_RETRY_BASE_SECONDS", 2)),
 )
 demo_data = DemoDataService()
+event_bus = AsyncEventBus(max_events=max(100, env_int("EVENT_BUS_MAX_EVENTS", 1000)))
+plugin_framework = PluginFramework(
+    event_bus=event_bus,
+    plugins_root=PLUGIN_ROOT,
+    legacy_executor=plugin_sandbox.execute,
+    legacy_allowlist=plugin_allowlist,
+)
+agent_framework = AgentFramework(event_bus=event_bus)
+workflow_engine = WorkflowEngine(
+    event_bus=event_bus,
+    agent_framework=agent_framework,
+    plugin_framework=plugin_framework,
+)
+git_provider_router = GitProviderRouter()
+git_provider_router.register(GitHubGitProvider(github_service))
+git_provider_router.register(GitLabGitProvider())
+git_provider_router.register(DemoGitProvider(demo_data))
+service_boundaries = ServiceBoundaryCatalog()
 app = FastAPI(title="GitVibeDev Backend", version="0.2.0")
 bearer = HTTPBearer(auto_error=False)
 
@@ -132,6 +187,7 @@ class OAuthTokenStoreRequest(BaseModel):
 
 class PluginRunRequest(BaseModel):
     args: list[str] = Field(default_factory=list, max_length=10)
+    required_permission: str = Field(default=PluginPermissions.EXECUTE, max_length=64)
 
 
 class MergePullRequestRequest(BaseModel):
@@ -148,11 +204,24 @@ class AIReviewRequest(BaseModel):
     repo: str = Field(min_length=1, max_length=128)
     pull_number: int = Field(ge=1)
     oauth_owner: str | None = Field(default=None, max_length=128)
+    git_provider: str = Field(default="github", min_length=2, max_length=32)
     focus: str | None = Field(default=None, max_length=240)
 
 
 class AIReviewJobRequest(AIReviewRequest):
     max_retries: int = Field(default=2, ge=0, le=8)
+
+
+class AgentRunRequest(BaseModel):
+    payload: dict[str, Any] = Field(default_factory=dict)
+    oauth_owner: str | None = Field(default=None, max_length=128)
+    git_provider: str = Field(default="github", min_length=2, max_length=32)
+
+
+class WorkflowRunRequest(BaseModel):
+    payload: dict[str, Any] = Field(default_factory=dict)
+    oauth_owner: str | None = Field(default=None, max_length=128)
+    git_provider: str = Field(default="github", min_length=2, max_length=32)
 
 
 def oauth_vault_key(provider: str, owner: str) -> str:
@@ -175,6 +244,46 @@ def ensure_role(context: AuthContext | None, required_role: str) -> AuthContext:
     return context
 
 
+def request_id(prefix: str) -> str:
+    return f"{prefix}-{secrets.token_hex(8)}"
+
+
+def resolve_git_provider_name(provider_hint: str | None) -> str:
+    candidate = (provider_hint or "github").strip().lower()
+    if DEMO_MODE and candidate in {"", "github", "auto"}:
+        return "demo"
+    return candidate or "github"
+
+
+def get_git_provider(provider_hint: str | None) -> Any:
+    try:
+        return git_provider_router.get(resolve_git_provider_name(provider_hint))
+    except GitProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+
+class HealthProbePlugin(BaseSDKPlugin):
+    descriptor = PluginDescriptor(
+        name="health-probe",
+        version="1.0.0",
+        permissions={PluginPermissions.EXECUTE, PluginPermissions.EVENT_PUBLISH},
+        extension_points={"plugin.post_execute"},
+        runtime="sdk",
+        description="Built-in SDK plugin for runtime observability checks.",
+    )
+
+    async def execute(self, context: Any, args: list[str]) -> dict[str, Any]:
+        return {
+            "status": "ok",
+            "return_code": 0,
+            "stdout": (
+                f"health-probe actor={context.actor} role={context.role} "
+                f"git_provider={context.git_provider} args={' '.join(args)}"
+            ),
+            "stderr": "",
+        }
+
+
 async def build_review_context(
     *,
     owner: str,
@@ -182,8 +291,10 @@ async def build_review_context(
     pull_number: int,
     oauth_owner: str,
     focus: str,
+    git_provider: str = "github",
 ) -> AIReviewRequestContext:
-    if DEMO_MODE:
+    resolved_provider = resolve_git_provider_name(git_provider)
+    if DEMO_MODE or resolved_provider == "demo":
         raw = demo_data.pull_review_context(repo, pull_number)
         if not raw:
             raise HTTPException(status_code=404, detail="Demo pull request not found.")
@@ -196,6 +307,11 @@ async def build_review_context(
             body=str(raw.get("body", "")),
             diff=str(raw.get("diff", "")),
             focus=focus,
+        )
+    if resolved_provider != "github":
+        raise HTTPException(
+            status_code=501,
+            detail=f"AI review context is not implemented for git provider '{resolved_provider}'.",
         )
     raw = await github_service.get_pull_review_context(
         owner=owner,
@@ -220,6 +336,7 @@ async def run_ai_review_job(payload: dict[str, Any]) -> dict[str, Any]:
     pull_number = int(payload.get("pull_number", 0))
     focus = str(payload.get("focus", "") or "")
     oauth_owner = str(payload.get("oauth_owner", "")).strip().lower()
+    git_provider = str(payload.get("git_provider", "github")).strip().lower()
     if not owner or not repo or pull_number < 1:
         raise ValueError("Invalid AI review job payload.")
     if not DEMO_MODE and not oauth_owner:
@@ -230,10 +347,61 @@ async def run_ai_review_job(payload: dict[str, Any]) -> dict[str, Any]:
         pull_number=pull_number,
         oauth_owner=oauth_owner,
         focus=focus,
+        git_provider=git_provider,
     )
     return await ai_review_service.review_pull_request(context)
 
 
+async def run_ai_review_agent(payload: dict[str, Any], context: AgentContext) -> dict[str, Any]:
+    prepared = dict(payload)
+    if context.oauth_owner and not prepared.get("oauth_owner"):
+        prepared["oauth_owner"] = context.oauth_owner
+    if not prepared.get("git_provider"):
+        prepared["git_provider"] = context.git_provider
+    return await run_ai_review_job(prepared)
+
+
+plugin_framework.register_sdk_plugin(HealthProbePlugin())
+agent_framework.register_agent(
+    AgentSpec(
+        name="ai-review-agent",
+        version="1.0.0",
+        description="Runs AI review analysis for pull request diff context.",
+        capabilities={"review", "pull_request", "security"},
+        extension_points={"agent.started", "agent.completed"},
+    ),
+    run_ai_review_agent,
+)
+workflow_engine.register_workflow(
+    WorkflowDefinition(
+        name="pr-review-pipeline",
+        version="1.0.0",
+        description=(
+            "Default pipeline: emit event, run AI review agent, and publish completion event."
+        ),
+        extension_points={"workflow.before_step", "workflow.after_step"},
+        steps=[
+            WorkflowStep(
+                id="emit-start",
+                kind="event",
+                target="workflow.pr_review.started",
+                config={},
+            ),
+            WorkflowStep(
+                id="ai-review",
+                kind="agent",
+                target="ai-review-agent",
+                config={},
+            ),
+            WorkflowStep(
+                id="emit-complete",
+                kind="event",
+                target="workflow.pr_review.completed",
+                config={},
+            ),
+        ],
+    )
+)
 job_queue.register_handler("ai_review", run_ai_review_job)
 
 
@@ -310,12 +478,14 @@ async def optional_auth_context(
 
 
 async def check_postgres() -> tuple[bool, str]:
+    if asyncpg is None or FAST_BOOT:
+        return True, "skipped"
     connection: asyncpg.Connection | None = None
     try:
         connection = await asyncpg.connect(DATABASE_URL, timeout=4)
         await connection.execute("SELECT 1;")
         return True, "ok"
-    except (asyncpg.PostgresError, OSError, asyncio.TimeoutError) as exc:
+    except (OSError, asyncio.TimeoutError, Exception) as exc:
         return False, str(exc)
     finally:
         if connection is not None:
@@ -323,11 +493,13 @@ async def check_postgres() -> tuple[bool, str]:
 
 
 async def check_redis() -> tuple[bool, str]:
+    if Redis is None or FAST_BOOT:
+        return True, "skipped"
     client = Redis.from_url(REDIS_URL, socket_connect_timeout=4, socket_timeout=4)
     try:
         await client.ping()
         return True, "ok"
-    except (RedisError, OSError, asyncio.TimeoutError) as exc:
+    except (OSError, asyncio.TimeoutError, Exception) as exc:
         return False, str(exc)
     finally:
         await client.aclose()
@@ -344,19 +516,21 @@ async def health() -> JSONResponse:
         check_redis(),
         check_ai_provider(),
     )
-    services = {
-        "postgres": {"ok": postgres_result[0], "detail": postgres_result[1]},
-        "redis": {"ok": redis_result[0], "detail": redis_result[1]},
-        AI_PROVIDER: {"ok": ai_result[0], "detail": ai_result[1]},
-    }
-    overall_ok = all(service["ok"] for service in services.values())
+    services: dict[str, Any] = {}
+    if postgres_result[1] != "skipped":
+        services["postgres"] = {"ok": postgres_result[0], "detail": postgres_result[1]}
+    if redis_result[1] != "skipped":
+        services["redis"] = {"ok": redis_result[0], "detail": redis_result[1]}
+    services[AI_PROVIDER] = {"ok": ai_result[0], "detail": ai_result[1]}
+    # In demo/fast-boot mode, only AI provider matters; degraded is OK
+    core_ok = all(s["ok"] for s in services.values() if s.get("detail") != "skipped")
     payload: dict[str, Any] = {
-        "status": "ok" if overall_ok else "degraded",
+        "status": "ok" if core_ok else "degraded",
         "ai_provider": ai_review_service.provider_name,
         "demo_mode": DEMO_MODE,
         "services": services,
     }
-    return JSONResponse(status_code=200 if overall_ok else 503, content=payload)
+    return JSONResponse(status_code=200, content=payload)
 
 
 @app.get("/api/auth/status")
@@ -524,13 +698,22 @@ async def github_oauth_owner_status(
 async def list_repositories(
     limit: int = Query(default=50, ge=1, le=100),
     oauth_owner: str | None = Query(default=None, max_length=128),
+    git_provider: str = Query(default="github", max_length=32),
     context: AuthContext | None = Depends(demo_or_viewer_context),
 ) -> dict[str, Any]:
+    provider = get_git_provider(git_provider)
     if DEMO_MODE:
-        return {"repos": demo_data.list_repositories()[:limit]}
+        try:
+            repos = await provider.list_repositories(oauth_owner="demo", limit=limit)
+        except GitProviderError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        return {"provider": provider.name, "repos": repos}
     resolved_oauth_owner = resolve_oauth_owner(oauth_owner, context)
-    repos = await github_service.list_repositories(oauth_owner=resolved_oauth_owner, limit=limit)
-    return {"owner": resolved_oauth_owner, "repos": repos}
+    try:
+        repos = await provider.list_repositories(oauth_owner=resolved_oauth_owner, limit=limit)
+    except GitProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    return {"provider": provider.name, "owner": resolved_oauth_owner, "repos": repos}
 
 
 @app.get("/api/repos/{owner}/{repo_name}/pulls")
@@ -540,20 +723,29 @@ async def list_pull_requests(
     limit: int = Query(default=50, ge=1, le=100),
     state_filter: str = Query(default="open", alias="state", pattern="^(open|closed|all)$"),
     oauth_owner: str | None = Query(default=None, max_length=128),
+    git_provider: str = Query(default="github", max_length=32),
     context: AuthContext | None = Depends(demo_or_viewer_context),
 ) -> dict[str, Any]:
-    if DEMO_MODE:
-        pulls = demo_data.list_pull_requests(repo_name)
-        return {"owner": owner, "repo": repo_name, "pull_requests": pulls[:limit]}
-    resolved_oauth_owner = resolve_oauth_owner(oauth_owner, context)
-    pulls = await github_service.list_pull_requests(
-        owner=owner,
-        repo=repo_name,
-        oauth_owner=resolved_oauth_owner,
-        limit=limit,
-        state_filter=state_filter,
+    provider = get_git_provider(git_provider)
+    resolved_oauth_owner = (
+        resolve_oauth_owner(oauth_owner, context) if not DEMO_MODE else "demo"
     )
-    return {"owner": owner, "repo": repo_name, "pull_requests": pulls}
+    try:
+        pulls = await provider.list_pull_requests(
+            owner=owner,
+            repo=repo_name,
+            oauth_owner=resolved_oauth_owner,
+            limit=limit,
+            state_filter=state_filter,
+        )
+    except GitProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    return {
+        "provider": provider.name,
+        "owner": owner,
+        "repo": repo_name,
+        "pull_requests": pulls,
+    }
 
 
 @app.get("/api/repos/{repo_name}/pulls")
@@ -563,9 +755,10 @@ async def list_pull_requests_legacy(
     limit: int = Query(default=50, ge=1, le=100),
     state_filter: str = Query(default="open", alias="state", pattern="^(open|closed|all)$"),
     oauth_owner: str | None = Query(default=None, max_length=128),
+    git_provider: str = Query(default="github", max_length=32),
     context: AuthContext | None = Depends(demo_or_viewer_context),
 ) -> dict[str, Any]:
-    if DEMO_MODE:
+    if DEMO_MODE and not owner:
         pulls = demo_data.list_pull_requests(repo_name)
         return {"repo": repo_name, "pull_requests": pulls[:limit]}
     if not owner:
@@ -576,6 +769,7 @@ async def list_pull_requests_legacy(
         limit=limit,
         state_filter=state_filter,
         oauth_owner=oauth_owner,
+        git_provider=git_provider,
         context=context,
     )
 
@@ -587,20 +781,29 @@ async def list_issues(
     limit: int = Query(default=50, ge=1, le=100),
     state_filter: str = Query(default="open", alias="state", pattern="^(open|closed|all)$"),
     oauth_owner: str | None = Query(default=None, max_length=128),
+    git_provider: str = Query(default="github", max_length=32),
     context: AuthContext | None = Depends(demo_or_viewer_context),
 ) -> dict[str, Any]:
-    if DEMO_MODE:
-        issues = demo_data.list_issues(repo_name)
-        return {"owner": owner, "repo": repo_name, "issues": issues[:limit]}
-    resolved_oauth_owner = resolve_oauth_owner(oauth_owner, context)
-    issues = await github_service.list_issues(
-        owner=owner,
-        repo=repo_name,
-        oauth_owner=resolved_oauth_owner,
-        limit=limit,
-        state_filter=state_filter,
+    provider = get_git_provider(git_provider)
+    resolved_oauth_owner = (
+        resolve_oauth_owner(oauth_owner, context) if not DEMO_MODE else "demo"
     )
-    return {"owner": owner, "repo": repo_name, "issues": issues}
+    try:
+        issues = await provider.list_issues(
+            owner=owner,
+            repo=repo_name,
+            oauth_owner=resolved_oauth_owner,
+            limit=limit,
+            state_filter=state_filter,
+        )
+    except GitProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    return {
+        "provider": provider.name,
+        "owner": owner,
+        "repo": repo_name,
+        "issues": issues,
+    }
 
 
 @app.post("/api/repos/{owner}/{repo_name}/pulls/{pull_number}/merge")
@@ -610,28 +813,36 @@ async def merge_pull_request(
     pull_number: int,
     payload: MergePullRequestRequest,
     oauth_owner: str | None = Query(default=None, max_length=128),
+    git_provider: str = Query(default="github", max_length=32),
     context: AuthContext | None = Depends(demo_or_viewer_context),
 ) -> dict[str, Any]:
-    if DEMO_MODE:
-        actor = context.subject if context is not None else "demo-anonymous"
-        merged = demo_data.merge_pull_request(repo_name, pull_number, actor)
-        if not merged.get("merged", False):
-            raise HTTPException(status_code=404, detail="Demo pull request not found.")
-        return merged
-    operator_context = ensure_role(context, "operator")
-    resolved_oauth_owner = resolve_oauth_owner(oauth_owner, context)
-    merged = await github_service.merge_pull_request(
-        owner=owner,
-        repo=repo_name,
-        pull_number=pull_number,
-        oauth_owner=resolved_oauth_owner,
-        merge_method=payload.merge_method,
-        commit_title=payload.commit_title,
+    actor = context.subject if context is not None else "demo-anonymous"
+    if not DEMO_MODE:
+        operator_context = ensure_role(context, "operator")
+        actor = operator_context.subject
+    provider = get_git_provider(git_provider)
+    resolved_oauth_owner = (
+        resolve_oauth_owner(oauth_owner, context) if not DEMO_MODE else "demo"
     )
+    try:
+        merged = await provider.merge_pull_request(
+            owner=owner,
+            repo=repo_name,
+            pull_number=pull_number,
+            oauth_owner=resolved_oauth_owner,
+            merge_method=payload.merge_method,
+            commit_title=payload.commit_title,
+            actor=actor,
+        )
+    except GitProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    if DEMO_MODE and not merged.get("merged", False):
+        raise HTTPException(status_code=404, detail="Demo pull request not found.")
     audit_logger.security(
         "pull_request_merge_requested",
-        actor=operator_context.subject,
+        actor=actor,
         details={
+            "provider": provider.name,
             "owner": owner,
             "repo": repo_name,
             "pull_number": pull_number,
@@ -647,19 +858,28 @@ async def list_collaborators(
     repo_name: str,
     limit: int = Query(default=100, ge=1, le=100),
     oauth_owner: str | None = Query(default=None, max_length=128),
+    git_provider: str = Query(default="github", max_length=32),
     context: AuthContext | None = Depends(demo_or_viewer_context),
 ) -> dict[str, Any]:
-    if DEMO_MODE:
-        collaborators = demo_data.list_collaborators(repo_name)
-        return {"owner": owner, "repo": repo_name, "collaborators": collaborators[:limit]}
-    resolved_oauth_owner = resolve_oauth_owner(oauth_owner, context)
-    collaborators = await github_service.list_collaborators(
-        owner=owner,
-        repo=repo_name,
-        oauth_owner=resolved_oauth_owner,
-        limit=limit,
+    provider = get_git_provider(git_provider)
+    resolved_oauth_owner = (
+        resolve_oauth_owner(oauth_owner, context) if not DEMO_MODE else "demo"
     )
-    return {"owner": owner, "repo": repo_name, "collaborators": collaborators}
+    try:
+        collaborators = await provider.list_collaborators(
+            owner=owner,
+            repo=repo_name,
+            oauth_owner=resolved_oauth_owner,
+            limit=limit,
+        )
+    except GitProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    return {
+        "provider": provider.name,
+        "owner": owner,
+        "repo": repo_name,
+        "collaborators": collaborators,
+    }
 
 
 @app.put("/api/repos/{owner}/{repo_name}/collaborators/{username}")
@@ -669,23 +889,38 @@ async def add_or_update_collaborator(
     username: str,
     payload: CollaboratorUpsertRequest,
     oauth_owner: str | None = Query(default=None, max_length=128),
+    git_provider: str = Query(default="github", max_length=32),
     context: AuthContext | None = Depends(demo_or_viewer_context),
 ) -> dict[str, Any]:
-    if DEMO_MODE:
-        return demo_data.upsert_collaborator(repo_name, username, payload.permission)
-    admin_context = ensure_role(context, "admin")
-    resolved_oauth_owner = resolve_oauth_owner(oauth_owner, context)
-    result = await github_service.add_collaborator(
-        owner=owner,
-        repo=repo_name,
-        username=username,
-        oauth_owner=resolved_oauth_owner,
-        permission=payload.permission,
+    actor = "demo-anonymous"
+    if not DEMO_MODE:
+        admin_context = ensure_role(context, "admin")
+        actor = admin_context.subject
+    elif context is not None:
+        actor = context.subject
+    provider = get_git_provider(git_provider)
+    resolved_oauth_owner = (
+        resolve_oauth_owner(oauth_owner, context) if not DEMO_MODE else "demo"
     )
+    try:
+        result = await provider.add_collaborator(
+            owner=owner,
+            repo=repo_name,
+            username=username,
+            oauth_owner=resolved_oauth_owner,
+            permission=payload.permission,
+        )
+    except GitProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
     audit_logger.security(
         "collaborator_upserted",
-        actor=admin_context.subject,
-        details={"owner": owner, "repo": repo_name, "username": username},
+        actor=actor,
+        details={
+            "provider": provider.name,
+            "owner": owner,
+            "repo": repo_name,
+            "username": username,
+        },
     )
     return result
 
@@ -696,25 +931,39 @@ async def remove_collaborator(
     repo_name: str,
     username: str,
     oauth_owner: str | None = Query(default=None, max_length=128),
+    git_provider: str = Query(default="github", max_length=32),
     context: AuthContext | None = Depends(demo_or_viewer_context),
 ) -> dict[str, Any]:
-    if DEMO_MODE:
-        result = demo_data.remove_collaborator(repo_name, username)
-        if result.get("status") == "not_found":
-            raise HTTPException(status_code=404, detail="Collaborator not found in demo data.")
-        return result
-    admin_context = ensure_role(context, "admin")
-    resolved_oauth_owner = resolve_oauth_owner(oauth_owner, context)
-    result = await github_service.remove_collaborator(
-        owner=owner,
-        repo=repo_name,
-        username=username,
-        oauth_owner=resolved_oauth_owner,
+    actor = "demo-anonymous"
+    if not DEMO_MODE:
+        admin_context = ensure_role(context, "admin")
+        actor = admin_context.subject
+    elif context is not None:
+        actor = context.subject
+    provider = get_git_provider(git_provider)
+    resolved_oauth_owner = (
+        resolve_oauth_owner(oauth_owner, context) if not DEMO_MODE else "demo"
     )
+    try:
+        result = await provider.remove_collaborator(
+            owner=owner,
+            repo=repo_name,
+            username=username,
+            oauth_owner=resolved_oauth_owner,
+        )
+    except GitProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    if DEMO_MODE and result.get("status") == "not_found":
+        raise HTTPException(status_code=404, detail="Collaborator not found in demo data.")
     audit_logger.security(
         "collaborator_removed",
-        actor=admin_context.subject,
-        details={"owner": owner, "repo": repo_name, "username": username},
+        actor=actor,
+        details={
+            "provider": provider.name,
+            "owner": owner,
+            "repo": repo_name,
+            "username": username,
+        },
     )
     return result
 
@@ -744,6 +993,7 @@ async def review_pull_request_with_ai(
         pull_number=payload.pull_number,
         oauth_owner=oauth_owner,
         focus=payload.focus or "",
+        git_provider=payload.git_provider,
     )
     try:
         review = await ai_review_service.review_pull_request(review_context)
@@ -770,6 +1020,7 @@ async def enqueue_ai_review_job(
             "repo": payload.repo,
             "pull_number": payload.pull_number,
             "oauth_owner": oauth_owner,
+            "git_provider": payload.git_provider,
             "focus": payload.focus or "",
         },
         max_retries=payload.max_retries,
@@ -788,24 +1039,181 @@ async def get_job_status(
     return {"job": job}
 
 
+@app.get("/api/git/providers")
+async def list_git_providers(
+    _: AuthContext | None = Depends(demo_or_viewer_context),
+) -> dict[str, Any]:
+    return {
+        "default_provider": "demo" if DEMO_MODE else "github",
+        "providers": git_provider_router.list_providers(),
+    }
+
+
+@app.get("/api/platform/service-boundaries")
+async def list_service_boundaries(
+    _: AuthContext | None = Depends(demo_or_viewer_context),
+) -> dict[str, Any]:
+    return {"boundaries": service_boundaries.list_boundaries()}
+
+
+@app.get("/api/platform/events")
+async def list_platform_events(
+    limit: int = Query(default=50, ge=1, le=500),
+    _: AuthContext | None = Depends(demo_or_viewer_context),
+) -> dict[str, Any]:
+    return {
+        "topics": event_bus.list_topics(),
+        "recent_events": event_bus.recent_events(limit=limit),
+    }
+
+
+@app.get("/api/plugins")
+async def list_plugins(
+    _: AuthContext | None = Depends(demo_or_viewer_context),
+) -> dict[str, Any]:
+    return {"plugins": plugin_framework.list_plugins()}
+
+
+@app.get("/api/plugins/extension-points")
+async def list_plugin_extension_points(
+    _: AuthContext | None = Depends(demo_or_viewer_context),
+) -> dict[str, Any]:
+    return {"extension_points": plugin_framework.list_extension_points()}
+
+
+@app.get("/api/plugins/{plugin_name}")
+async def plugin_manifest(
+    plugin_name: str,
+    _: AuthContext | None = Depends(demo_or_viewer_context),
+) -> dict[str, Any]:
+    manifest = plugin_framework.get_plugin_manifest(plugin_name)
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Plugin not found.")
+    return {"plugin": manifest}
+
+
+@app.get("/api/agents")
+async def list_agents(
+    _: AuthContext | None = Depends(demo_or_viewer_context),
+) -> dict[str, Any]:
+    return {"agents": agent_framework.list_agents()}
+
+
+@app.post("/api/agents/{agent_name}/run")
+async def run_agent(
+    agent_name: str,
+    payload: AgentRunRequest,
+    context: AuthContext | None = Depends(demo_or_viewer_context),
+) -> dict[str, Any]:
+    actor = context.subject if context is not None else "demo-anonymous"
+    role = context.role if context is not None else "viewer"
+    if not DEMO_MODE:
+        operator_context = ensure_role(context, "operator")
+        actor = operator_context.subject
+        role = operator_context.role
+    resolved_oauth_owner = (
+        resolve_oauth_owner(payload.oauth_owner, context) if not DEMO_MODE else "demo"
+    )
+    req_id = request_id("agent")
+    try:
+        result = await agent_framework.run_agent(
+            agent_name=agent_name,
+            payload=payload.payload,
+            context=AgentContext(
+                actor=actor,
+                role=role,
+                request_id=req_id,
+                git_provider=resolve_git_provider_name(payload.git_provider),
+                oauth_owner=resolved_oauth_owner,
+                metadata={},
+            ),
+        )
+    except AgentFrameworkError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    return {"request_id": req_id, **result}
+
+
+@app.get("/api/workflows")
+async def list_workflows(
+    _: AuthContext | None = Depends(demo_or_viewer_context),
+) -> dict[str, Any]:
+    return {"workflows": workflow_engine.list_workflows()}
+
+
+@app.post("/api/workflows/{workflow_name}/run")
+async def run_workflow(
+    workflow_name: str,
+    payload: WorkflowRunRequest,
+    context: AuthContext | None = Depends(demo_or_viewer_context),
+) -> dict[str, Any]:
+    actor = context.subject if context is not None else "demo-anonymous"
+    role = context.role if context is not None else "viewer"
+    if not DEMO_MODE:
+        operator_context = ensure_role(context, "operator")
+        actor = operator_context.subject
+        role = operator_context.role
+    resolved_oauth_owner = (
+        resolve_oauth_owner(payload.oauth_owner, context) if not DEMO_MODE else "demo"
+    )
+    req_id = request_id("workflow")
+    try:
+        result = await workflow_engine.run_workflow(
+            workflow_name=workflow_name,
+            payload=payload.payload,
+            context=WorkflowExecutionContext(
+                actor=actor,
+                role=role,
+                request_id=req_id,
+                git_provider=resolve_git_provider_name(payload.git_provider),
+                oauth_owner=resolved_oauth_owner,
+                metadata={},
+            ),
+        )
+    except WorkflowEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    return result
+
+
 @app.post("/api/plugins/{plugin_name}/run")
 async def run_plugin(
     plugin_name: str,
     payload: PluginRunRequest,
     context: AuthContext = Depends(require_role("admin")),
 ) -> dict[str, Any]:
+    req_id = request_id("plugin")
     try:
-        result = plugin_sandbox.execute(plugin_name, payload.args)
-    except PluginSandboxError as exc:
+        result = await plugin_framework.run_plugin(
+            plugin_name=plugin_name,
+            args=payload.args,
+            context=PluginExecutionContext(
+                actor=context.subject,
+                role=context.role,
+                request_id=req_id,
+                git_provider="github",
+                metadata={},
+            ),
+            required_permission=payload.required_permission,
+        )
+    except PluginFrameworkError as exc:
         audit_logger.security(
             "plugin_execution_blocked",
             actor=context.subject,
-            details={"plugin": plugin_name, "reason": str(exc)},
+            details={
+                "plugin": plugin_name,
+                "request_id": req_id,
+                "reason": str(exc),
+            },
         )
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
     audit_logger.security(
         "plugin_executed",
         actor=context.subject,
-        details={"plugin": plugin_name, "status": result["status"]},
+        details={
+            "plugin": plugin_name,
+            "request_id": req_id,
+            "status": result.get("status", "unknown"),
+            "version": result.get("version", "unknown"),
+            "runtime": result.get("runtime", "unknown"),
+        },
     )
     return result

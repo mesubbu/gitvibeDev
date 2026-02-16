@@ -5,7 +5,7 @@
 Base URL (through nginx gateway):
 
 ```text
-http://localhost:8080
+http://localhost:3000
 ```
 
 API prefix:
@@ -50,13 +50,13 @@ Issue access + refresh tokens using bootstrap header.
 ```bash
 BOOTSTRAP_TOKEN=$(grep '^BOOTSTRAP_ADMIN_TOKEN=' .env | cut -d= -f2-)
 
-curl -sS -X POST http://localhost:8080/api/auth/token           -H 'Content-Type: application/json'           -H "x-bootstrap-token: ${BOOTSTRAP_TOKEN}"           -d '{"username":"alice","role":"admin"}'
+curl -sS -X POST http://localhost:3000/api/auth/token           -H 'Content-Type: application/json'           -H "x-bootstrap-token: ${BOOTSTRAP_TOKEN}"           -d '{"username":"alice","role":"admin"}'
 ```
 
 ### `POST /api/auth/refresh`
 
 ```bash
-curl -sS -X POST http://localhost:8080/api/auth/refresh           -H 'Content-Type: application/json'           -d '{"refresh_token":"<refresh_token>"}'
+curl -sS -X POST http://localhost:3000/api/auth/refresh           -H 'Content-Type: application/json'           -d '{"refresh_token":"<refresh_token>"}'
 ```
 
 ### `POST /api/auth/rotate-signing-key` (admin)
@@ -74,7 +74,7 @@ Query params:
 Example:
 
 ```bash
-curl -sS "http://localhost:8080/api/github/oauth/start?owner_hint=alice"
+curl -sS "http://localhost:3000/api/github/oauth/start?owner_hint=alice"
 ```
 
 ### `GET /api/github/oauth/callback`
@@ -97,6 +97,7 @@ Query params:
 
 - `limit` (`1..100`, default `50`)
 - `oauth_owner` (required outside demo mode unless token subject matches desired owner)
+- `git_provider` (`github` default; `demo` available in demo mode)
 
 ### `GET /api/repos/{owner}/{repo_name}/pulls`
 
@@ -105,6 +106,7 @@ Query params:
 - `state` = `open|closed|all`
 - `limit` (`1..100`)
 - `oauth_owner` (non-demo)
+- `git_provider` (`github` default)
 
 Legacy route still supported:
 
@@ -117,6 +119,7 @@ Query params:
 - `state` = `open|closed|all`
 - `limit` (`1..100`)
 - `oauth_owner` (non-demo)
+- `git_provider` (`github` default)
 
 ### `POST /api/repos/{owner}/{repo_name}/pulls/{pull_number}/merge`
 
@@ -130,10 +133,11 @@ Body:
 ```
 
 - Requires `operator` role in non-demo mode
+- Supports `git_provider` query param (`github` default)
 
 ### `GET /api/repos/{owner}/{repo_name}/collaborators`
 
-Query params: `limit`, `oauth_owner`
+Query params: `limit`, `oauth_owner`, `git_provider`
 
 ### `PUT /api/repos/{owner}/{repo_name}/collaborators/{username}`
 
@@ -144,10 +148,12 @@ Body:
 ```
 
 - Requires `admin` role in non-demo mode
+- Supports `git_provider` query param (`github` default)
 
 ### `DELETE /api/repos/{owner}/{repo_name}/collaborators/{username}`
 
 - Requires `admin` role in non-demo mode
+- Supports `git_provider` query param (`github` default)
 
 ## AI endpoints
 
@@ -160,7 +166,7 @@ Provider and model health status.
 Synchronous review.
 
 ```bash
-curl -sS -X POST http://localhost:8080/api/ai/review           -H 'Content-Type: application/json'           -H "Authorization: Bearer ${ACCESS_TOKEN}"           -H "x-csrf-token: ${CSRF_TOKEN}"           -d '{
+curl -sS -X POST http://localhost:3000/api/ai/review           -H 'Content-Type: application/json'           -H "Authorization: Bearer ${ACCESS_TOKEN}"           -H "x-csrf-token: ${CSRF_TOKEN}"           -d '{
     "owner":"demo-org",
     "repo":"platform-api",
     "pull_number":42,
@@ -173,7 +179,7 @@ curl -sS -X POST http://localhost:8080/api/ai/review           -H 'Content-Type:
 Queue async review job.
 
 ```bash
-curl -sS -X POST http://localhost:8080/api/ai/review/jobs           -H 'Content-Type: application/json'           -H "Authorization: Bearer ${ACCESS_TOKEN}"           -H "x-csrf-token: ${CSRF_TOKEN}"           -d '{
+curl -sS -X POST http://localhost:3000/api/ai/review/jobs           -H 'Content-Type: application/json'           -H "Authorization: Bearer ${ACCESS_TOKEN}"           -H "x-csrf-token: ${CSRF_TOKEN}"           -d '{
     "owner":"demo-org",
     "repo":"platform-api",
     "pull_number":42,
@@ -185,6 +191,64 @@ curl -sS -X POST http://localhost:8080/api/ai/review/jobs           -H 'Content-
 ### `GET /api/jobs/{job_id}`
 
 Poll async job status (`queued`, `running`, `completed`, `failed`).
+
+## Platform and framework endpoints
+
+### `GET /api/git/providers`
+
+Lists configured git providers and capabilities.
+
+### `GET /api/platform/service-boundaries`
+
+Returns service boundary ownership and dependencies.
+
+### `GET /api/platform/events`
+
+Returns known event topics and recent event envelopes.
+
+### `GET /api/plugins`
+
+Returns plugin manifests (name, version, permissions, runtime, extension points).
+
+### `GET /api/plugins/extension-points`
+
+Lists available plugin/workflow extension points.
+
+### `GET /api/plugins/{plugin_name}`
+
+Returns a single plugin manifest.
+
+### `GET /api/agents`
+
+Lists registered agents with capabilities and versions.
+
+### `POST /api/agents/{agent_name}/run`
+
+Runs an agent with payload:
+
+```json
+{
+  "payload": {},
+  "oauth_owner": "optional-owner",
+  "git_provider": "github"
+}
+```
+
+### `GET /api/workflows`
+
+Lists registered workflow definitions.
+
+### `POST /api/workflows/{workflow_name}/run`
+
+Runs a workflow with payload:
+
+```json
+{
+  "payload": {},
+  "oauth_owner": "optional-owner",
+  "git_provider": "github"
+}
+```
 
 ## Plugin endpoint
 

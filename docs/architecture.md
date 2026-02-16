@@ -33,6 +33,12 @@ Browser
 - `app/github_service.py`: GitHub OAuth + GitHub REST wrappers
 - `app/ai_service.py`: AI provider abstraction (`ollama`, `openai-compatible`)
 - `app/job_queue.py`: Persistent async job queue with retries (stored in encrypted vault)
+- `app/platform/event_bus.py`: internal publish/subscribe event bus
+- `app/platform/plugin_framework.py`: plugin manifests, permissions, SDK runtime, extension points
+- `app/platform/agent_framework.py`: agent registry and dispatch
+- `app/platform/workflow_engine.py`: orchestration over events, agents, and plugins
+- `app/platform/git_providers.py`: multi-git provider router (`github`, `demo`, `gitlab` boundary)
+- `app/platform/service_boundaries.py`: explicit service boundary catalog
 - `app/vault.py`: Encrypted JSON vault using Fernet-derived key
 - `app/plugin_sandbox.py`: Strict plugin execution sandbox
 - `app/demo_service.py`: Demo-mode in-memory repos/PRs/issues/collaborators
@@ -58,6 +64,13 @@ Browser
 2. Job queue persists job payload (`background_job_queue_state`) in vault.
 3. Worker processes job and retries failures with backoff.
 4. Client polls `GET /api/jobs/{job_id}` for status/result.
+
+### 4) Workflow and extension flow
+
+1. Client runs `POST /api/workflows/{workflow_name}/run`.
+2. Workflow engine executes configured steps (`event`, `agent`, `plugin`, `noop`).
+3. Event bus emits lifecycle events (`workflow.started`, `workflow.completed`, etc.).
+4. Plugin framework extension points (`workflow.before_step`, `workflow.after_step`) can intercept step execution.
 
 ## Security model
 

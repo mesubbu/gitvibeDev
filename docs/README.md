@@ -17,6 +17,7 @@ All command blocks are copy-paste ready.
 
 - [Plugin development guide](./plugin-development.md)
 - [AI configuration guide](./ai-configuration.md)
+- [Testing guide](./testing.md)
 - [Contribution guide](./contributing.md)
 - [Troubleshooting guide](./troubleshooting.md)
 
@@ -25,3 +26,10 @@ All command blocks are copy-paste ready.
 - Current docs version: `v0.2.0`
 - Update the version label in each file when changing API contracts, environment variables, or startup commands.
 - Keep examples aligned with `.env.example`, `docker-compose.yml`, `Makefile`, and `backend/app/main.py`.
+
+## Community and project operations
+
+- [Community operations](./community/README.md)
+- [RFC process](./rfcs/README.md)
+- [Governance model](../GOVERNANCE.md)
+- [Security policy](../SECURITY.md)

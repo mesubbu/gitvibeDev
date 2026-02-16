@@ -12,8 +12,8 @@
 
 ### Test
 - There is currently no committed automated test suite or CI test workflow.
-- Full stack smoke test: `curl -fsS http://localhost:${FRONTEND_PORT:-8080}/health`
-- Single endpoint smoke test: `curl -fsS http://localhost:${FRONTEND_PORT:-8080}/api/auth/status`
+- Full stack smoke test: `curl -fsS http://localhost:${FRONTEND_PORT:-3000}/health`
+- Single endpoint smoke test: `curl -fsS http://localhost:${FRONTEND_PORT:-3000}/api/auth/status`
 
 ### Lint
 - There is currently no committed lint/format command configuration in this repository.

@@ -6,8 +6,8 @@
 
 ```bash
 make logs
-curl -sS http://localhost:8080/health
-curl -sS http://localhost:8080/api/auth/status
+curl -sS http://localhost:3000/health
+curl -sS http://localhost:3000/api/auth/status
 ```
 
 ## Installer says Docker is not running
@@ -41,7 +41,7 @@ docker compose version
 Check service details:
 
 ```bash
-curl -sS http://localhost:8080/health
+curl -sS http://localhost:3000/health
 ```
 
 Then inspect service logs:
@@ -77,7 +77,7 @@ Set these in `.env`:
 ```bash
 GITHUB_APP_CLIENT_ID=...
 GITHUB_APP_CLIENT_SECRET=...
-GITHUB_OAUTH_REDIRECT_URI=http://localhost:8080/api/github/oauth/callback
+GITHUB_OAUTH_REDIRECT_URI=http://localhost:3000/api/github/oauth/callback
 ```
 
 ### `OAuth redirect URI mismatch`
@@ -120,7 +120,7 @@ Common causes:
 Inspect job status:
 
 ```bash
-curl -sS http://localhost:8080/api/jobs/<job_id> -H "Authorization: Bearer ${ACCESS_TOKEN}"
+curl -sS http://localhost:3000/api/jobs/<job_id> -H "Authorization: Bearer ${ACCESS_TOKEN}"
 ```
 
 Check `last_error` in response and backend logs:

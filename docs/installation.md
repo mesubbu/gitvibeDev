@@ -29,15 +29,24 @@ What this does:
   - `SECRET_KEY`
   - `APP_ENCRYPTION_KEY`
   - `BOOTSTRAP_ADMIN_TOKEN`
-  - `POSTGRES_PASSWORD`
-  - `REDIS_PASSWORD`
 - Starts the stack with `docker compose --env-file .env up -d --build`
+
+By default, only the backend, frontend (nginx), and Ollama are started.
+PostgreSQL and Redis are **not required** for basic/demo usage.
+
+### Full profile (optional)
+
+To also start PostgreSQL and Redis (for production persistence):
+
+```bash
+make up-full
+```
 
 ## Verify installation
 
 ```bash
-curl -fsS http://localhost:8080/health
-curl -fsS http://localhost:8080/api/auth/status
+curl -fsS http://localhost:3000/health
+curl -fsS http://localhost:3000/api/auth/status
 ```
 
 ## First access token (for protected API calls)
@@ -45,7 +54,7 @@ curl -fsS http://localhost:8080/api/auth/status
 ```bash
 BOOTSTRAP_TOKEN=$(grep '^BOOTSTRAP_ADMIN_TOKEN=' .env | cut -d= -f2-)
 
-curl -sS           -X POST http://localhost:8080/api/auth/token           -H 'Content-Type: application/json'           -H "x-bootstrap-token: ${BOOTSTRAP_TOKEN}"           -d '{"username":"local-admin","role":"admin"}'
+curl -sS           -X POST http://localhost:3000/api/auth/token           -H 'Content-Type: application/json'           -H "x-bootstrap-token: ${BOOTSTRAP_TOKEN}"           -d '{"username":"local-admin","role":"admin"}'
 ```
 
 Save `access_token`, `refresh_token`, and `csrf_token` from the response.
@@ -73,14 +82,14 @@ make update
 bash installer/install.sh --skip-clone --target-dir . --skip-up
 
 # Clone into custom path and start
-bash installer/install.sh --repo-url https://github.com/your-org/gitvibedev.git --target-dir ~/gitvibedev
+bash installer/install.sh --repo-url https://github.com/AnshumanAtrey/GitVibeDev.git --target-dir ~/gitvibedev
 ```
 
 ## Ports and URLs
 
-- Frontend + API gateway: `http://localhost:${FRONTEND_PORT:-8080}`
-- Backend health through gateway: `http://localhost:${FRONTEND_PORT:-8080}/health`
-- API base through gateway: `http://localhost:${FRONTEND_PORT:-8080}/api`
+- Frontend + API gateway: `http://localhost:${FRONTEND_PORT:-3000}`
+- Backend health through gateway: `http://localhost:${FRONTEND_PORT:-3000}/health`
+- API base through gateway: `http://localhost:${FRONTEND_PORT:-3000}/api`
 
 ## Optional: run backend directly (without Docker)
 
@@ -89,7 +98,8 @@ cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+DEMO_MODE=true FAST_BOOT=true uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-> You must still provide compatible Postgres/Redis/Ollama endpoints via environment variables.
+> Set `FAST_BOOT=true` to skip health checks for Postgres/Redis/Ollama.
+> In demo mode, no external services are required.

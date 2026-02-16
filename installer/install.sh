@@ -182,14 +182,14 @@ print_summary() {
   local env_file="$1"
   local frontend_port
   frontend_port="$(get_env_var FRONTEND_PORT "$env_file")"
-  frontend_port="${frontend_port:-8080}"
+  frontend_port="${frontend_port:-3000}"
   printf '\nGitVibeDev is up.\n'
   printf 'Open: http://localhost:%s\n' "$frontend_port"
   printf 'Backend health: http://localhost:%s/health\n\n' "$frontend_port"
 }
 
 main() {
-  local repo_url="${INSTALL_REPO_URL:-https://github.com/your-org/gitvibedev.git}"
+  local repo_url="${INSTALL_REPO_URL:-https://github.com/AnshumanAtrey/GitVibeDev.git}"
   local skip_clone="false"
   local skip_up="false"
   local target_dir=""

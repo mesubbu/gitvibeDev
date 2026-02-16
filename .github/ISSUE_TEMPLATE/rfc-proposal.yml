@@ -1,0 +1,50 @@
+name: RFC Proposal
+description: Propose a significant technical or governance change.
+title: "RFC: "
+labels: ["rfc", "proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form to start an RFC discussion.
+        For security issues, use SECURITY.md instead.
+  - type: input
+    id: summary
+    attributes:
+      label: Proposal summary
+      description: One-sentence summary of the change.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What problem are we solving?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Include architecture, APIs, and rollout approach.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What alternatives were considered and why rejected?
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Backward compatibility
+      description: How existing users and integrations are preserved.
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks and mitigations
+      description: Operational and security risks plus mitigations.
+    validations:
+      required: true

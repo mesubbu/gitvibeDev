@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (example: v0.2.0)'
+        required: true
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Compile backend modules
+        run: python -m compileall backend/app
+
+      - name: Resolve release tag
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          VERSION_FILE=$(tr -d '[:space:]' < VERSION)
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Tag must follow vMAJOR.MINOR.PATCH"
+            exit 1
+          fi
+          if [ "$TAG" != "v${VERSION_FILE}" ]; then
+            echo "Tag $TAG does not match VERSION file v${VERSION_FILE}"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release notes from changelog
+        run: |
+          VERSION='${{ steps.meta.outputs.version }}'
+          awk -v ver="$VERSION" '
+            BEGIN { capture=0 }
+            $0 ~ "^## \[" ver "\]" { capture=1; next }
+            capture && $0 ~ "^## \[" { capture=0 }
+            capture { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "No changelog section found for version ${VERSION}" > RELEASE_NOTES.md
+          fi
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          body_path: RELEASE_NOTES.md

@@ -26,11 +26,17 @@ Backend syntax check:
 python3 -m compileall backend/app
 ```
 
+Fast automated test checks:
+
+```bash
+make test-fast
+```
+
 Smoke checks:
 
 ```bash
-curl -fsS http://localhost:8080/health
-curl -fsS http://localhost:8080/api/auth/status
+curl -fsS http://localhost:3000/health
+curl -fsS http://localhost:3000/api/auth/status
 ```
 
 ## 4) Commit and push
@@ -76,3 +82,12 @@ Include:
 - expected vs actual behavior
 - relevant logs (`make logs` output excerpt)
 - environment details (OS, Docker version)
+
+## Program-level process
+
+- Semantic versioning source of truth: `VERSION`
+- Changelog source of truth: `CHANGELOG.md`
+- CLA policy: `docs/community/cla/individual-cla.md`
+- RFC process: `docs/rfcs/README.md`
+- Governance: `GOVERNANCE.md`
+- Security reporting: `SECURITY.md`

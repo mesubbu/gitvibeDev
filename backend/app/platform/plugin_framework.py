@@ -234,8 +234,8 @@ class PluginFramework:
             self._registry.register_manifest(legacy, replace=False)
             return legacy
         raise PluginFrameworkError(
-            f"Plugin '{plugin_name}' is not registered.",
-            status_code=404,
+            "Plugin is not in the allowlist.",
+            status_code=403,
         )
 
     @staticmethod

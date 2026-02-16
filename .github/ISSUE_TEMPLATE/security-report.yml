@@ -1,0 +1,11 @@
+name: Security report (public placeholder)
+description: Redirect users to private reporting channel.
+title: "Security: please use private reporting"
+labels: ["security"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ Please do not disclose vulnerability details publicly.
+
+        Follow private reporting instructions in `SECURITY.md`.
