@@ -1,0 +1,136 @@
+name: ${COMPOSE_PROJECT_NAME:-gitvibedev}
+
+services:
+  # PostgreSQL is used for application persistence.
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gitvibe}
+      POSTGRES_USER: ${POSTGRES_USER:-gitvibe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_change_me}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Redis powers async/background job queues.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-redis_change_me}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_change_me}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Ollama provides local LLM inference by default.
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 20s
+
+  # FastAPI backend exposes API and health checks.
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      AI_PROVIDER: ${AI_PROVIDER:-ollama}
+      DEMO_MODE: ${DEMO_MODE:-true}
+      SECRET_KEY: ${SECRET_KEY:-change_me}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-change_me}
+      BOOTSTRAP_ADMIN_TOKEN: ${BOOTSTRAP_ADMIN_TOKEN:-change_me}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-gitvibe}:${POSTGRES_PASSWORD:-postgres_change_me}@postgres:5432/${POSTGRES_DB:-gitvibe}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_change_me}@redis:6379/0
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      GITHUB_APP_CLIENT_ID: ${GITHUB_APP_CLIENT_ID:-}
+      GITHUB_APP_CLIENT_SECRET: ${GITHUB_APP_CLIENT_SECRET:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_OAUTH_REDIRECT_URI: ${GITHUB_OAUTH_REDIRECT_URI:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-20}
+      REFRESH_TOKEN_TTL_HOURS: ${REFRESH_TOKEN_TTL_HOURS:-12}
+      TOKEN_MAX_PREVIOUS_KEYS: ${TOKEN_MAX_PREVIOUS_KEYS:-2}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-120}
+      RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:-30}
+      MAX_REQUEST_BODY_BYTES: ${MAX_REQUEST_BODY_BYTES:-1048576}
+      CSRF_PROTECTION_ENABLED: ${CSRF_PROTECTION_ENABLED:-true}
+      SECURITY_HEADERS_ENABLED: ${SECURITY_HEADERS_ENABLED:-true}
+      AUDIT_LOG_FILE: ${AUDIT_LOG_FILE:-/data/logs/audit.log}
+      VAULT_FILE: ${VAULT_FILE:-/data/vault/secrets.enc}
+      PLUGIN_SANDBOX_ENABLED: ${PLUGIN_SANDBOX_ENABLED:-false}
+      PLUGIN_ALLOWLIST: ${PLUGIN_ALLOWLIST:-}
+      PLUGIN_TIMEOUT_SECONDS: ${PLUGIN_TIMEOUT_SECONDS:-5}
+      JOB_QUEUE_POLL_SECONDS: ${JOB_QUEUE_POLL_SECONDS:-1}
+      JOB_RETRY_BASE_SECONDS: ${JOB_RETRY_BASE_SECONDS:-2}
+    expose:
+      - "8000"
+    volumes:
+      - backend_data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).status == 200 else sys.exit(1)\""]
+      interval: 15s
+      timeout: 6s
+      retries: 6
+      start_period: 20s
+
+  # Nginx serves the placeholder frontend and proxies /api to backend.
+  frontend:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    volumes:
+      - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:
+  redis_data:
+  ollama_data:
+  backend_data:
