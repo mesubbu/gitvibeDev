@@ -115,10 +115,19 @@ make update
 ## Manual installer options
 
 ```bash
-# Use existing working directory, generate .env and secrets, but do not start services
-bash installer/install.sh --skip-clone --target-dir . --skip-up
+# Start frontend-only secure demo mode
+bash installer/install.sh --skip-clone --target-dir . --mode demo
 
-# Clone into custom path and start
+# Start default development stack (frontend + backend + ollama)
+bash installer/install.sh --skip-clone --target-dir . --mode development
+
+# Use existing working directory, generate .env and secrets, but do not start services
+bash installer/install.sh --skip-clone --target-dir . --mode development --skip-up
+
+# Start full profile (includes PostgreSQL + Redis)
+bash installer/install.sh --skip-clone --target-dir . --mode development --full
+
+# Clone into custom path and start in development mode
 bash installer/install.sh --repo-url https://github.com/mesubbu/gitvibeDev.git --target-dir ~/gitvibedev
 ```
 

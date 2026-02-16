@@ -68,6 +68,18 @@ APP_MODE=demo docker compose --env-file .env up -d frontend
 
 This starts only Nginx + frontend with local mock API/auth/storage.
 
+**Option D — One-click installer script:**
+
+```bash
+bash installer/install.sh --skip-clone --target-dir . --mode development
+```
+
+For frontend-only demo mode:
+
+```bash
+bash installer/install.sh --skip-clone --target-dir . --mode demo
+```
+
 ### 2. Demo Mode
 
 Set `APP_MODE=demo` to run the secure offline demo — no GitHub credentials needed.  

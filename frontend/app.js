@@ -223,9 +223,11 @@
 
     return h("header", { className: "app-header" }, [
       h("div", { className: "logo", onclick: function () { navigate("repos"); } }, [
-        h("span", null, "🎸"),
-        document.createTextNode(" Git"),
-        h("span", null, "Vibe"),
+        h("span", { className: "logo-icon", "aria-hidden": "true" }, "🎸"),
+        h("div", { className: "logo-text" }, [
+          h("span", { className: "logo-primary" }, "GitVibe"),
+          h("span", { className: "logo-secondary" }, "Aurora"),
+        ]),
       ]),
       h("div", { className: "header-actions" }, [
         h("span", { className: "health-dot " + healthDot, title: "Backend: " + (state.health ? state.health.status : "unknown") }),
@@ -318,10 +320,10 @@
   function renderRepoNav() {
     if (!state.selectedRepo) return null;
     var repo = state.selectedRepo;
-    return h("div", null, [
-      h("div", { style: "margin-bottom: 16px" }, [
+    return h("div", { className: "repo-nav" }, [
+      h("div", { className: "repo-nav-header" }, [
         h("button", { className: "btn btn-sm", onclick: function () { navigate("repos"); } }, "← Back to repos"),
-        h("span", { style: "margin-left: 12px; font-weight: 600; font-size: 18px" }, repo.owner + "/" + repo.name),
+        h("span", { className: "repo-nav-title" }, repo.owner + "/" + repo.name),
       ]),
       h("div", { className: "nav-tabs" }, [
         h("button", {
@@ -370,7 +372,7 @@
       }}, [
         h("div", null, [
           h("div", { className: "list-item-title" }, [
-            h("span", { className: "badge " + badgeClass, style: "margin-right: 8px" }, badgeText),
+            h("span", { className: "badge badge-inline " + badgeClass }, badgeText),
             document.createTextNode("#" + pr.number + " " + pr.title),
           ]),
           h("div", { className: "list-item-meta" },
@@ -410,7 +412,7 @@
       var item = h("div", { className: "list-item" }, [
         h("div", null, [
           h("div", { className: "list-item-title" }, [
-            h("span", { className: "badge " + badgeClass, style: "margin-right: 8px" }, badgeText),
+            h("span", { className: "badge badge-inline " + badgeClass }, badgeText),
             document.createTextNode("#" + issue.number + " " + issue.title),
           ]),
           h("div", { className: "list-item-meta" },
@@ -435,7 +437,7 @@
     var content = [];
 
     // Back button
-    content.push(h("div", { style: "margin-bottom: 16px" }, [
+    content.push(h("div", { className: "back-row" }, [
       h("button", { className: "btn btn-sm", onclick: function () { navigate("pulls"); } }, "← Back to PRs"),
     ]));
 
@@ -443,7 +445,7 @@
     var headerCard = h("div", { className: "card" }, [
       h("div", { className: "card-header" }, [
         h("div", null, [
-          h("h2", { style: "font-size: 20px; margin-bottom: 4px" },
+          h("h2", { className: "pr-detail-title" },
             "#" + pr.number + " " + pr.title),
           h("div", { className: "list-item-meta" },
             "by " + (pr.user || pr.author || "unknown") + " • " +
@@ -456,12 +458,12 @@
           }, merged ? "Merged" : prState === "closed" ? "Closed" : "Open"),
         ]),
       ]),
-      pr.body ? h("p", { style: "font-size: 14px; color: var(--text-secondary); margin-top: 8px" }, pr.body) : null,
+      pr.body ? h("p", { className: "pr-detail-body" }, pr.body) : null,
     ]);
     content.push(headerCard);
 
     // Action buttons
-    var actions = h("div", { style: "display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap" });
+    var actions = h("div", { className: "action-row" });
 
     if (canMerge) {
       actions.appendChild(h("button", {
@@ -494,7 +496,7 @@
     // AI Review results
     if (state.aiJobId) {
       content.push(h("div", { className: "card" }, [
-        h("div", { className: "card-title", style: "margin-bottom: 12px" }, "🤖 AI Review in progress..."),
+        h("div", { className: "card-title card-title-spacing" }, "🤖 AI Review in progress..."),
         renderLoading("Waiting for AI analysis..."),
       ]));
     } else if (state.aiReview) {
@@ -520,17 +522,17 @@
 
   function renderAIReview(review) {
     var card = h("div", { className: "card" });
-    card.appendChild(h("div", { className: "card-title", style: "margin-bottom: 12px" }, "🤖 AI Review Results"));
+    card.appendChild(h("div", { className: "card-title card-title-spacing" }, "🤖 AI Review Results"));
 
     if (typeof review === "string") {
-      card.appendChild(h("div", { style: "white-space: pre-wrap; font-size: 14px" }, review));
+      card.appendChild(h("div", { className: "review-text" }, review));
       return card;
     }
 
     if (review.review) {
       var rev = review.review;
       if (rev.summary) {
-        card.appendChild(h("p", { style: "margin-bottom: 12px; font-size: 14px" }, rev.summary));
+        card.appendChild(h("p", { className: "review-summary" }, rev.summary));
       }
       if (rev.findings && rev.findings.length) {
         rev.findings.forEach(function (f) {
@@ -541,12 +543,12 @@
               h("span", null, f.title || f.message || "Finding"),
             ]),
             f.description ? h("div", { className: "ai-finding-body" }, f.description) : null,
-            f.file ? h("div", { className: "ai-finding-body", style: "margin-top: 4px; font-family: monospace" }, "📄 " + f.file + (f.line ? ":" + f.line : "")) : null,
+            f.file ? h("div", { className: "ai-finding-body ai-finding-file" }, "📄 " + f.file + (f.line ? ":" + f.line : "")) : null,
           ]));
         });
       }
     } else {
-      card.appendChild(h("div", { style: "white-space: pre-wrap; font-size: 14px" }, JSON.stringify(review, null, 2)));
+      card.appendChild(h("div", { className: "review-text" }, JSON.stringify(review, null, 2)));
     }
 
     return card;
@@ -560,7 +562,7 @@
     ]));
 
     var runtimeCard = h("div", { className: "card" });
-    runtimeCard.appendChild(h("h3", { style: "font-size: 16px; font-weight: 600; margin-bottom: 12px" }, "Runtime Mode"));
+    runtimeCard.appendChild(h("h3", { className: "settings-card-title" }, "Runtime Mode"));
     runtimeCard.appendChild(h("div", { className: "setting-row" }, [
       h("span", { className: "setting-label" }, "APP_MODE"),
       h("span", { className: "setting-value" }, state.appMode),
@@ -573,12 +575,12 @@
 
     // Health status
     var healthCard = h("div", { className: "card" });
-    healthCard.appendChild(h("h3", { style: "font-size: 16px; font-weight: 600; margin-bottom: 12px" }, "System Health"));
+    healthCard.appendChild(h("h3", { className: "settings-card-title" }, "System Health"));
     if (state.health) {
       var statusRow = h("div", { className: "setting-row" }, [
         h("span", { className: "setting-label" }, "Status"),
         h("span", null, [
-          h("span", { className: "health-dot " + (state.health.status === "ok" ? "ok" : "degraded"), style: "margin-right: 6px" }),
+          h("span", { className: "health-dot health-dot-inline " + (state.health.status === "ok" ? "ok" : "degraded") }),
           document.createTextNode(state.health.status || "unknown"),
         ]),
       ]);
@@ -598,7 +600,7 @@
           healthCard.appendChild(h("div", { className: "setting-row" }, [
             h("span", { className: "setting-label" }, name),
             h("span", null, [
-              h("span", { className: "health-dot " + (svc.ok ? "ok" : "error"), style: "margin-right: 6px" }),
+              h("span", { className: "health-dot health-dot-inline " + (svc.ok ? "ok" : "error") }),
               document.createTextNode(svc.detail || ""),
             ]),
           ]));
@@ -612,7 +614,7 @@
     // Auth status
     if (state.authStatus) {
       var authCard = h("div", { className: "card" });
-      authCard.appendChild(h("h3", { style: "font-size: 16px; font-weight: 600; margin-bottom: 12px" }, "Authentication"));
+      authCard.appendChild(h("h3", { className: "settings-card-title" }, "Authentication"));
       authCard.appendChild(h("div", { className: "setting-row" }, [
         h("span", { className: "setting-label" }, "Mode"),
         h("span", { className: "setting-value" }, state.authStatus.mode),
@@ -634,7 +636,7 @@
 
     // Theme
     var themeCard = h("div", { className: "card" });
-    themeCard.appendChild(h("h3", { style: "font-size: 16px; font-weight: 600; margin-bottom: 12px" }, "Preferences"));
+    themeCard.appendChild(h("h3", { className: "settings-card-title" }, "Preferences"));
     themeCard.appendChild(h("div", { className: "setting-row" }, [
       h("span", { className: "setting-label" }, "Theme"),
       h("button", { className: "btn btn-sm", onclick: toggleTheme },
@@ -644,7 +646,7 @@
 
     // Keyboard shortcuts
     var kbCard = h("div", { className: "card" });
-    kbCard.appendChild(h("h3", { style: "font-size: 16px; font-weight: 600; margin-bottom: 12px" }, "Keyboard Shortcuts"));
+    kbCard.appendChild(h("h3", { className: "settings-card-title" }, "Keyboard Shortcuts"));
     var shortcuts = [
       ["r", "Go to Repositories"],
       ["s", "Go to Settings"],
